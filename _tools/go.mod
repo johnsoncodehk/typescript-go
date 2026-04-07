@@ -13,3 +13,5 @@ require (
 	github.com/google/go-cmp v0.6.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 )
+
+tool github.com/microsoft/typescript-go/_tools/cmd/stringer

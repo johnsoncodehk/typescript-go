@@ -9,8 +9,8 @@ import (
 	"github.com/microsoft/typescript-go/internal/tspath"
 )
 
-//go:generate go tool golang.org/x/tools/cmd/stringer -type=ModuleKind -trimprefix=ModuleKind -output=modulekind_stringer_generated.go
-//go:generate go tool golang.org/x/tools/cmd/stringer -type=ScriptTarget -trimprefix=ScriptTarget -output=scripttarget_stringer_generated.go
+//go:generate go -C ../../_tools tool stringer -dir=$PWD -type=ModuleKind -trimprefix=ModuleKind -output=modulekind_stringer_generated.go
+//go:generate go -C ../../_tools tool stringer -dir=$PWD -type=ScriptTarget -trimprefix=ScriptTarget -output=scripttarget_stringer_generated.go
 //go:generate npx dprint fmt modulekind_stringer_generated.go scripttarget_stringer_generated.go
 
 type CompilerOptions struct {
