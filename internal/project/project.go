@@ -23,7 +23,7 @@ const (
 	hr                  = "-----------------------------------------------"
 )
 
-//go:generate go -C ../../_tools tool stringer -dir=$PWD -type=Kind -trimprefix=Kind -output=project_stringer_generated.go
+//go:generate go -C ../../_tools tool stringer -dir=../internal/project -type=Kind -trimprefix=Kind -output=project_stringer_generated.go
 //go:generate npx dprint fmt project_stringer_generated.go
 
 type Kind int

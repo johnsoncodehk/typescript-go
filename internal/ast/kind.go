@@ -1,6 +1,6 @@
 package ast
 
-//go:generate go -C ../../_tools tool stringer -dir=$PWD -type=Kind -output=kind_stringer_generated.go
+//go:generate go -C ../../_tools tool stringer -dir=../internal/ast -type=Kind -output=kind_stringer_generated.go
 //go:generate npx dprint fmt kind_stringer_generated.go
 
 type Kind int16

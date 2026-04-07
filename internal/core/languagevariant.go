@@ -1,6 +1,6 @@
 package core
 
-//go:generate go -C ../../_tools tool stringer -dir=$PWD -type=LanguageVariant -output=languagevariant_stringer_generated.go
+//go:generate go -C ../../_tools tool stringer -dir=../internal/core -type=LanguageVariant -output=languagevariant_stringer_generated.go
 //go:generate npx dprint fmt languagevariant_stringer_generated.go
 
 type LanguageVariant int32

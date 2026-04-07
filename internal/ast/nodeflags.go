@@ -1,5 +1,8 @@
 package ast
 
+//go:generate go -C ../../_tools tool stringer -dir=../internal/ast -type=NodeFlags,ModifierFlags,SymbolFlags,CheckFlags,TokenFlags -bitflag -output=bitflags_stringer_generated.go
+//go:generate npx dprint fmt bitflags_stringer_generated.go
+
 type NodeFlags uint32
 
 const (

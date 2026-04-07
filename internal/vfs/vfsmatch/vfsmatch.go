@@ -12,7 +12,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/vfs"
 )
 
-//go:generate go -C ../../../_tools tool stringer -dir=$PWD -type=Usage -trimprefix=Usage -output=stringer_generated.go
+//go:generate go -C ../../../_tools tool stringer -dir=../internal/vfs/vfsmatch -type=Usage -trimprefix=Usage -output=stringer_generated.go
 //go:generate npx dprint fmt stringer_generated.go
 
 // This file implements the glob matching algorithm specified in MATCHING_ALGORITHM.md.

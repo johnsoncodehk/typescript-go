@@ -7,7 +7,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/tspath"
 )
 
-//go:generate go -C ../../../_tools tool stringer -dir=$PWD -type=ExportSyntax -output=export_stringer_generated.go
+//go:generate go -C ../../../_tools tool stringer -dir=../internal/ls/autoimport -type=ExportSyntax -output=export_stringer_generated.go
 //go:generate npx dprint fmt export_stringer_generated.go
 
 // ModuleID uniquely identifies a module across multiple declarations.
