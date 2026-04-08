@@ -138,7 +138,7 @@ func processAllProgramFiles(
 			CurrentDirectory:          opts.Host.GetCurrentDirectory(),
 		},
 		filesParser: &filesParser{
-			wg:       core.NewWorkGroup(singleThreaded),
+			wg:       core.NewThrottledWorkGroup(singleThreaded),
 			maxDepth: maxNodeModuleJsDepth,
 		},
 		rootTasks:           make([]*parseTask, 0, len(rootFiles)+len(compilerOptions.Lib)),
@@ -268,7 +268,7 @@ func (p *fileLoader) addProjectReferenceTasks(singleThreaded bool) {
 
 	parser := &projectReferenceParser{
 		loader: p,
-		wg:     core.NewWorkGroup(singleThreaded),
+		wg:     core.NewThrottledWorkGroup(singleThreaded),
 	}
 	rootTasks := createProjectReferenceParseTasks(projectReferences)
 	parser.parse(rootTasks)
