@@ -1,0 +1,37 @@
+//// [tests/cases/compiler/cjsModuleExportsNamedDeclarationEmit.ts] ////
+
+=== /index.js ===
+/** @type {typeof import("./helper").InternalClass} */
+const Cls = require("./helper").InternalClass;
+>Cls : Symbol(Cls, Decl(index.js, 1, 5))
+>require("./helper").InternalClass : Symbol(InternalClass, Decl(helper.js, 6, 18))
+>require : Symbol(require)
+>InternalClass : Symbol(InternalClass, Decl(helper.js, 6, 18))
+
+exports.instance = new Cls("hello");
+>exports.instance : Symbol(instance, Decl(index.js, 1, 46))
+>exports : Symbol(".", Decl(index.js, 0, 0))
+>instance : Symbol(instance, Decl(index.js, 1, 46))
+>Cls : Symbol(Cls, Decl(index.js, 1, 5))
+
+=== /helper.js ===
+class InternalClass {
+>InternalClass : Symbol(InternalClass, Decl(helper.js, 0, 0))
+
+    /** @param {string} x */
+    constructor(x) {
+>x : Symbol(x, Decl(helper.js, 2, 16))
+
+        this.x = x;
+>this.x : Symbol(InternalClass.x, Decl(helper.js, 2, 20))
+>this : Symbol(InternalClass, Decl(helper.js, 0, 0))
+>x : Symbol(InternalClass.x, Decl(helper.js, 2, 20))
+>x : Symbol(x, Decl(helper.js, 2, 16))
+    }
+}
+module.exports = { InternalClass };
+>module.exports : Symbol(exports, Decl(helper.js, 0, 0))
+>module : Symbol(module, Decl(helper.js, 0, 0))
+>exports : Symbol(exports, Decl(helper.js, 0, 0))
+>InternalClass : Symbol(InternalClass, Decl(helper.js, 6, 18))
+

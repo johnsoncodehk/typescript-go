@@ -1097,6 +1097,13 @@ func (tx *DeclarationTransformer) transformCommonJSExport(input *ast.Node, name 
 			return tx.Factory().NewSyntaxList([]*ast.Node{statement, assignment})
 		} else {
 			// export var name: Type
+			tx.state.getSymbolAccessibilityDiagnostic = func(_ printer.SymbolAccessibilityResult) *SymbolAccessibilityDiagnostic {
+				return &SymbolAccessibilityDiagnostic{
+					diagnosticMessage: diagnostics.Exported_variable_0_has_or_is_using_private_name_1,
+					errorNode:         input,
+					typeName:          name,
+				}
+			}
 			tx.tracker.PushErrorFallbackNode(input)
 			type_ := tx.ensureType(input, false)
 			varDecl := tx.Factory().NewVariableDeclaration(name, nil, type_, nil)

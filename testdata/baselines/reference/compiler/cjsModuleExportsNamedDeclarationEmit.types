@@ -1,0 +1,45 @@
+//// [tests/cases/compiler/cjsModuleExportsNamedDeclarationEmit.ts] ////
+
+=== /index.js ===
+/** @type {typeof import("./helper").InternalClass} */
+const Cls = require("./helper").InternalClass;
+>Cls : typeof InternalClass
+>require("./helper").InternalClass : typeof InternalClass
+>require("./helper") : { InternalClass: typeof InternalClass; }
+>require : any
+>"./helper" : "./helper"
+>InternalClass : typeof InternalClass
+
+exports.instance = new Cls("hello");
+>exports.instance = new Cls("hello") : InternalClass
+>exports.instance : InternalClass
+>exports : typeof import(".")
+>instance : InternalClass
+>new Cls("hello") : InternalClass
+>Cls : typeof InternalClass
+>"hello" : "hello"
+
+=== /helper.js ===
+class InternalClass {
+>InternalClass : InternalClass
+
+    /** @param {string} x */
+    constructor(x) {
+>x : string
+
+        this.x = x;
+>this.x = x : string
+>this.x : any
+>this : this
+>x : any
+>x : string
+    }
+}
+module.exports = { InternalClass };
+>module.exports = { InternalClass } : { InternalClass: typeof InternalClass; }
+>module.exports : { InternalClass: typeof InternalClass; }
+>module : { exports: { InternalClass: typeof InternalClass; }; }
+>exports : { InternalClass: typeof InternalClass; }
+>{ InternalClass } : { InternalClass: typeof InternalClass; }
+>InternalClass : typeof InternalClass
+
