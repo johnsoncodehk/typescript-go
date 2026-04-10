@@ -440,6 +440,7 @@ func isExpressionKind(kind Kind) bool {
 		KindSpreadElement,
 		KindAsExpression,
 		KindOmittedExpression,
+		KindCommaListExpression,
 		KindPartiallyEmittedExpression,
 		KindSatisfiesExpression:
 		return true
