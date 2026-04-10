@@ -464,7 +464,6 @@ func createConstEqualsRequireDeclaration(changeTracker *change.Tracker, name *as
 	return changeTracker.NewVariableStatement(
 		/*modifiers*/ nil,
 		changeTracker.NewVariableDeclarationList(
-			ast.NodeFlagsConst,
 			changeTracker.NewNodeList([]*ast.Node{
 				changeTracker.NewVariableDeclaration(
 					name,
@@ -479,6 +478,7 @@ func createConstEqualsRequireDeclaration(changeTracker *change.Tracker, name *as
 					),
 				),
 			}),
+			ast.NodeFlagsConst,
 		),
 	)
 }

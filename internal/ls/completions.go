@@ -115,7 +115,7 @@ type completionDataJSDocTagName struct{}
 type completionDataJSDocTag struct{}
 
 type completionDataJSDocParameterName struct {
-	tag *ast.JSDocParameterTag
+	tag *ast.JSDocParameterOrPropertyTag
 }
 
 type importStatementCompletionInfo struct {
@@ -1998,7 +1998,7 @@ func (l *LanguageService) createCompletionItem(
 	preferences := l.UserPreferences()
 	insertQuestionDot := originIsNullableMember(origin)
 	useBraces := originIsSymbolMember(origin) || needsConvertPropertyAccess
-	if originIsThisType(origin) {
+	if originIsThisTypeNode(origin) {
 		if needsConvertPropertyAccess {
 			insertText = fmt.Sprintf(
 				"this%s[%s]",
@@ -2455,7 +2455,7 @@ func shouldIncludeSymbol(
 	}
 
 	if closestSymbolDeclaration != nil && symbolDeclaration != nil {
-		if ast.IsParameter(closestSymbolDeclaration) && ast.IsParameter(symbolDeclaration) {
+		if ast.IsParameterDeclaration(closestSymbolDeclaration) && ast.IsParameterDeclaration(symbolDeclaration) {
 			parameters := closestSymbolDeclaration.Parent.ParameterList()
 			if symbolDeclaration.Pos() >= closestSymbolDeclaration.Pos() &&
 				symbolDeclaration.Pos() < parameters.End() {
@@ -2591,7 +2591,7 @@ func originIsObjectLiteralMethod(origin *symbolOriginInfo) bool {
 	return origin != nil && origin.kind&symbolOriginInfoKindObjectLiteralMethod != 0
 }
 
-func originIsThisType(origin *symbolOriginInfo) bool {
+func originIsThisTypeNode(origin *symbolOriginInfo) bool {
 	return origin != nil && origin.kind&symbolOriginInfoKindThisType != 0
 }
 
@@ -2612,7 +2612,7 @@ func originIsPromise(origin *symbolOriginInfo) bool {
 }
 
 func getSourceFromOrigin(origin *symbolOriginInfo) string {
-	if originIsThisType(origin) {
+	if originIsThisTypeNode(origin) {
 		return string(completionSourceThisProperty)
 	}
 
@@ -2906,7 +2906,7 @@ func getContextualType(previousToken *ast.Node, position int, file *ast.SourceFi
 	}
 }
 
-func getSwitchedType(caseClause *ast.CaseClauseNode, typeChecker *checker.Checker) *checker.Type {
+func getSwitchedType(caseClause *ast.CaseOrDefaultClauseNode, typeChecker *checker.Checker) *checker.Type {
 	return typeChecker.GetTypeAtLocation(caseClause.Parent.Parent.Expression())
 }
 
@@ -2971,7 +2971,7 @@ func getClosestSymbolDeclaration(contextToken *ast.Node, location *ast.Node) *as
 			return ast.FindAncestorQuit
 		}
 
-		if (ast.IsParameter(node) || ast.IsTypeParameterDeclaration(node)) &&
+		if (ast.IsParameterDeclaration(node) || ast.IsTypeParameterDeclaration(node)) &&
 			!ast.IsIndexSignatureDeclaration(node.Parent) {
 			return ast.FindAncestorTrue
 		}
@@ -3009,7 +3009,7 @@ func isInTypeParameterDefault(contextToken *ast.Node) bool {
 	parent := contextToken.Parent
 	for parent != nil {
 		if ast.IsTypeParameterDeclaration(parent) {
-			return parent.AsTypeParameter().DefaultType == node || node.Kind == ast.KindEqualsToken
+			return parent.AsTypeParameterDeclaration().DefaultType == node || node.Kind == ast.KindEqualsToken
 		}
 		node = parent
 		parent = parent.Parent
@@ -3602,7 +3602,7 @@ func isProbablyGlobalType(t *checker.Type, file *ast.SourceFile, typeChecker *ch
 	return false
 }
 
-func tryGetTypeLiteralNode(node *ast.Node) *ast.TypeLiteral {
+func tryGetTypeLiteralNode(node *ast.Node) *ast.TypeLiteralNodeNode {
 	if node == nil {
 		return nil
 	}
@@ -3921,7 +3921,7 @@ func tryGetConstructorLikeCompletionContainer(contextToken *ast.Node) *ast.Const
 }
 
 func isConstructorParameterCompletion(node *ast.Node) bool {
-	return node.Parent != nil && ast.IsParameter(node.Parent) && ast.IsConstructorDeclaration(node.Parent.Parent) &&
+	return node.Parent != nil && ast.IsParameterDeclaration(node.Parent) && ast.IsConstructorDeclaration(node.Parent.Parent) &&
 		(ast.IsParameterPropertyModifier(node.Kind) || ast.IsDeclarationName(node))
 }
 
@@ -5233,7 +5233,7 @@ func hasDocComment(file *ast.SourceFile, position int) bool {
 }
 
 // Get the corresponding JSDocTag node if the position is in a JSDoc comment
-func getJSDocTagAtPosition(node *ast.Node, position int) *ast.JSDocTag {
+func getJSDocTagAtPosition(node *ast.Node, position int) *ast.Node {
 	return ast.FindAncestorOrQuit(node, func(n *ast.Node) ast.FindAncestorResult {
 		if ast.IsJSDocTag(n) && n.Loc.ContainsInclusive(position) {
 			return ast.FindAncestorTrue
@@ -5245,7 +5245,7 @@ func getJSDocTagAtPosition(node *ast.Node, position int) *ast.JSDocTag {
 	})
 }
 
-func tryGetTypeExpressionFromTag(tag *ast.JSDocTag) *ast.Node {
+func tryGetTypeExpressionFromTag(tag *ast.Node) *ast.Node {
 	if isTagWithTypeExpression(tag) {
 		var typeExpression *ast.Node
 		if ast.IsJSDocTemplateTag(tag) {
@@ -5263,7 +5263,7 @@ func tryGetTypeExpressionFromTag(tag *ast.JSDocTag) *ast.Node {
 	return nil
 }
 
-func isTagWithTypeExpression(tag *ast.JSDocTag) bool {
+func isTagWithTypeExpression(tag *ast.Node) bool {
 	switch tag.Kind {
 	case ast.KindJSDocParameterTag, ast.KindJSDocPropertyTag, ast.KindJSDocReturnTag, ast.KindJSDocTypeTag,
 		ast.KindJSDocTypedefTag, ast.KindJSDocThrowsTag, ast.KindJSDocSatisfiesTag:
@@ -5449,7 +5449,7 @@ func getJSDocParameterCompletions(
 	// isSnippet := clientSupportsItemSnippet(clientOptions)
 	isSnippet := false // !!! need snippet printer
 	paramTagCount := 0
-	var tags []*ast.JSDocTag
+	var tags []*ast.Node
 	if jsDoc.AsJSDoc().Tags != nil {
 		tags = jsDoc.AsJSDoc().Tags.Nodes
 	}
@@ -5815,7 +5815,7 @@ func jsDocParamElementWorker(
 	return nil
 }
 
-func getJSDocParameterNameCompletions(tag *ast.JSDocParameterTag) []*lsproto.CompletionItem {
+func getJSDocParameterNameCompletions(tag *ast.JSDocParameterOrPropertyTag) []*lsproto.CompletionItem {
 	if !ast.IsIdentifier(tag.Name()) {
 		return nil
 	}
@@ -5826,7 +5826,7 @@ func getJSDocParameterNameCompletions(tag *ast.JSDocParameterTag) []*lsproto.Com
 		return nil
 	}
 
-	var tags []*ast.JSDocTag
+	var tags []*ast.Node
 	if jsDoc.AsJSDoc().Tags != nil {
 		tags = jsDoc.AsJSDoc().Tags.Nodes
 	}
@@ -5837,7 +5837,7 @@ func getJSDocParameterNameCompletions(tag *ast.JSDocParameterTag) []*lsproto.Com
 		}
 
 		name := param.Name().Text()
-		if core.Some(tags, func(t *ast.JSDocTag) bool {
+		if core.Some(tags, func(t *ast.Node) bool {
 			return t != tag.AsNode() &&
 				ast.IsJSDocParameterTag(t) &&
 				ast.IsIdentifier(t.Name()) &&
@@ -5947,7 +5947,7 @@ func (l *LanguageService) getExhaustiveCaseSnippets(
 			return nil, nil
 		}
 
-		newClauses := core.Map(elements, func(element *ast.Node) *ast.CaseClauseNode {
+		newClauses := core.Map(elements, func(element *ast.Node) *ast.CaseOrDefaultClauseNode {
 			return factory.NewCaseOrDefaultClause(ast.KindCaseClause, element, factory.NewNodeList(nil))
 		})
 		newLineChar := l.FormatOptions().NewLineCharacter
@@ -5997,7 +5997,7 @@ func typeNodeToExpression(
 ) *ast.Expression {
 	switch typeNode.Kind {
 	case ast.KindTypeReference:
-		typeName := typeNode.AsTypeReference().TypeName
+		typeName := typeNode.AsTypeReferenceNode().TypeName
 		return entityNameToExpression(typeName, target, quotePreference, factory)
 	case ast.KindIndexedAccessType:
 		objectExpression := typeNodeToExpression(
