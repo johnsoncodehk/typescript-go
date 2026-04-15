@@ -114,11 +114,24 @@ func (l *LanguageService) getDocumentationFromDeclaration(c *checker.Checker, sy
 			objectType := c.GetTypeAtLocation(parent)
 			if objectType != nil {
 				propertySymbol := findPropertyInType(c, objectType, propertyName)
-				if propertySymbol != nil && propertySymbol.ValueDeclaration != nil {
-					jsdoc = getJSDocOrTag(c, propertySymbol.ValueDeclaration)
-					if jsdoc != nil {
-						// Use property declaration for typedef check
-						declaration = propertySymbol.ValueDeclaration
+				if propertySymbol != nil {
+					if propertySymbol.ValueDeclaration != nil {
+						jsdoc = getJSDocOrTag(c, propertySymbol.ValueDeclaration)
+						if jsdoc != nil {
+							// Use property declaration for typedef check
+							declaration = propertySymbol.ValueDeclaration
+						}
+					}
+					// If no JSDoc found on ValueDeclaration (e.g. intersection types with non-uniform declarations
+					// where ValueDeclaration may be nil), search through all declarations
+					if jsdoc == nil {
+						for _, decl := range propertySymbol.Declarations {
+							if foundJsdoc := getJSDocOrTag(c, decl); foundJsdoc != nil {
+								jsdoc = foundJsdoc
+								declaration = decl
+								break
+							}
+						}
 					}
 				}
 			}
