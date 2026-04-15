@@ -259,9 +259,13 @@ class Session implements vscode.Disposable {
     }
 
     async dispose(): Promise<void> {
+        // Dispose registrations first so that commands (e.g. typescript.sortImports)
+        // are synchronously unregistered before yielding to the event loop. This
+        // avoids "command already exists" errors when the built-in TS extension
+        // activates after this extension is disabled.
+        await Promise.all(this.disposables.map(d => d.dispose()));
         await vscode.commands.executeCommand("setContext", "typescript.native-preview.serverRunning", false);
         await vscode.commands.executeCommand("setContext", "typescript.native-preview.cpuProfileRunning", false);
-        await Promise.all(this.disposables.map(d => d.dispose()));
     }
 }
 
