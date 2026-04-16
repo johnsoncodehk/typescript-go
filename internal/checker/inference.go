@@ -542,7 +542,7 @@ func (c *Checker) inferToTemplateLiteralType(n *InferenceState, source *Type, ta
 									return source
 								case left.flags&TypeFlagsTemplateLiteral != 0:
 									return left
-								case right.flags&TypeFlagsTemplateLiteral != 0 && c.isTypeMatchedByTemplateLiteralType(source, right.AsTemplateLiteralType()):
+								case right.flags&TypeFlagsTemplateLiteral != 0 && c.isTypeMatchedByTemplateLiteralType(source, right.AsTemplateLiteralType(), c.compareTypesAssignable):
 									return source
 								case left.flags&TypeFlagsStringMapping != 0:
 									return left
@@ -1584,7 +1584,7 @@ func hasInferenceCandidatesOrDefault(info *InferenceInfo) bool {
 func hasTypeParameterDefault(tp *Type) bool {
 	if tp.symbol != nil {
 		for _, d := range tp.symbol.Declarations {
-			if ast.IsTypeParameterDeclaration(d) && d.AsTypeParameter().DefaultType != nil {
+			if ast.IsTypeParameterDeclaration(d) && d.AsTypeParameterDeclaration().DefaultType != nil {
 				return true
 			}
 		}
