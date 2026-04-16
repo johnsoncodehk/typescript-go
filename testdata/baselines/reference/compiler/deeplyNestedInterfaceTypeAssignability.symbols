@@ -1,0 +1,99 @@
+//// [tests/cases/compiler/deeplyNestedInterfaceTypeAssignability.ts] ////
+
+=== test.ts ===
+import type { Outer as Target } from "./a/outer";
+>Outer : Symbol(Target, Decl(outer.ts, 0, 37))
+>Target : Symbol(Target, Decl(test.ts, 0, 13))
+
+import type { Outer as Source } from "./b/outer";
+>Outer : Symbol(Source, Decl(outer.ts, 0, 37))
+>Source : Symbol(Source, Decl(test.ts, 1, 13))
+
+// Should error: b/leaf.ts Leaf is missing 'id' required by a/leaf.ts Leaf.
+// tsc reports this. tsgo misses it when types are nested 3+ import levels deep with arrays.
+declare function getSource(): Source;
+>getSource : Symbol(getSource, Decl(test.ts, 1, 49))
+>Source : Symbol(Source, Decl(test.ts, 1, 13))
+
+const target: Target = getSource();
+>target : Symbol(target, Decl(test.ts, 6, 5))
+>Target : Symbol(Target, Decl(test.ts, 0, 13))
+>getSource : Symbol(getSource, Decl(test.ts, 1, 49))
+
+=== a/outer.ts ===
+import type { Inner } from "./inner";
+>Inner : Symbol(Inner, Decl(outer.ts, 0, 13))
+
+export interface Outer {
+>Outer : Symbol(Outer, Decl(outer.ts, 0, 37))
+
+  inners: Inner[];
+>inners : Symbol(Outer.inners, Decl(outer.ts, 2, 24))
+>Inner : Symbol(Inner, Decl(outer.ts, 0, 13))
+}
+
+=== a/inner.ts ===
+import type { Mid } from "./leaf";
+>Mid : Symbol(Mid, Decl(inner.ts, 0, 13))
+
+export interface Inner {
+>Inner : Symbol(Inner, Decl(inner.ts, 0, 34))
+
+  mids: Mid[];
+>mids : Symbol(Inner.mids, Decl(inner.ts, 2, 24))
+>Mid : Symbol(Mid, Decl(inner.ts, 0, 13))
+}
+
+=== a/leaf.ts ===
+export interface Leaf {
+>Leaf : Symbol(Leaf, Decl(leaf.ts, 0, 0))
+
+  id: string;
+>id : Symbol(Leaf.id, Decl(leaf.ts, 0, 23))
+}
+
+export interface Mid {
+>Mid : Symbol(Mid, Decl(leaf.ts, 2, 1))
+
+  leaves: Leaf[];
+>leaves : Symbol(Mid.leaves, Decl(leaf.ts, 4, 22))
+>Leaf : Symbol(Leaf, Decl(leaf.ts, 0, 0))
+}
+
+=== b/outer.ts ===
+import type { Inner } from "./inner";
+>Inner : Symbol(Inner, Decl(outer.ts, 0, 13))
+
+export interface Outer {
+>Outer : Symbol(Outer, Decl(outer.ts, 0, 37))
+
+  inners: Inner[];
+>inners : Symbol(Outer.inners, Decl(outer.ts, 2, 24))
+>Inner : Symbol(Inner, Decl(outer.ts, 0, 13))
+}
+
+=== b/inner.ts ===
+import type { Mid } from "./leaf";
+>Mid : Symbol(Mid, Decl(inner.ts, 0, 13))
+
+export interface Inner {
+>Inner : Symbol(Inner, Decl(inner.ts, 0, 34))
+
+  mids: Mid[];
+>mids : Symbol(Inner.mids, Decl(inner.ts, 2, 24))
+>Mid : Symbol(Mid, Decl(inner.ts, 0, 13))
+}
+
+=== b/leaf.ts ===
+export interface Leaf {
+>Leaf : Symbol(Leaf, Decl(leaf.ts, 0, 0))
+}
+
+export interface Mid {
+>Mid : Symbol(Mid, Decl(leaf.ts, 1, 1))
+
+  leaves: Leaf[];
+>leaves : Symbol(Mid.leaves, Decl(leaf.ts, 3, 22))
+>Leaf : Symbol(Leaf, Decl(leaf.ts, 0, 0))
+}
+

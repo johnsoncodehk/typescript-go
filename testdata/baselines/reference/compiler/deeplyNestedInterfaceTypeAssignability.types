@@ -1,0 +1,77 @@
+//// [tests/cases/compiler/deeplyNestedInterfaceTypeAssignability.ts] ////
+
+=== test.ts ===
+import type { Outer as Target } from "./a/outer";
+>Outer : any
+>Target : Target
+
+import type { Outer as Source } from "./b/outer";
+>Outer : any
+>Source : Source
+
+// Should error: b/leaf.ts Leaf is missing 'id' required by a/leaf.ts Leaf.
+// tsc reports this. tsgo misses it when types are nested 3+ import levels deep with arrays.
+declare function getSource(): Source;
+>getSource : () => Source
+
+const target: Target = getSource();
+>target : Target
+>getSource() : Source
+>getSource : () => Source
+
+=== a/outer.ts ===
+import type { Inner } from "./inner";
+>Inner : Inner
+
+export interface Outer {
+  inners: Inner[];
+>inners : Inner[]
+}
+
+=== a/inner.ts ===
+import type { Mid } from "./leaf";
+>Mid : Mid
+
+export interface Inner {
+  mids: Mid[];
+>mids : Mid[]
+}
+
+=== a/leaf.ts ===
+export interface Leaf {
+  id: string;
+>id : string
+}
+
+export interface Mid {
+  leaves: Leaf[];
+>leaves : Leaf[]
+}
+
+=== b/outer.ts ===
+import type { Inner } from "./inner";
+>Inner : Inner
+
+export interface Outer {
+  inners: Inner[];
+>inners : Inner[]
+}
+
+=== b/inner.ts ===
+import type { Mid } from "./leaf";
+>Mid : Mid
+
+export interface Inner {
+  mids: Mid[];
+>mids : Mid[]
+}
+
+=== b/leaf.ts ===
+export interface Leaf {
+}
+
+export interface Mid {
+  leaves: Leaf[];
+>leaves : Leaf[]
+}
+

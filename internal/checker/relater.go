@@ -834,11 +834,22 @@ func (c *Checker) hasMatchingRecursionIdentity(t *Type, identity RecursionId) bo
 func getRecursionIdentity(t *Type) RecursionId {
 	// Object and array literals are known not to contain recursive references and don't need a recursion identity.
 	if t.flags&TypeFlagsObject != 0 && !isObjectOrArrayLiteralType(t) {
-		if t.objectFlags&ObjectFlagsReference != 0 && t.AsTypeReference().node != nil {
-			// Deferred type references are tracked through their associated AST node. This gives us finer
-			// granularity than using their associated target because each manifest type reference has a
-			// unique AST node.
-			return asRecursionId(t.AsTypeReference().node)
+		if t.objectFlags&ObjectFlagsReference != 0 {
+			if t.AsTypeReference().node != nil {
+				// Deferred type references are tracked through their associated AST node. This gives us finer
+				// granularity than using their associated target because each manifest type reference has a
+				// unique AST node.
+				return asRecursionId(t.AsTypeReference().node)
+			}
+			// For non-deferred type references, only use the target symbol as identity if the type has
+			// generic arguments (containing type parameters). This is needed to detect infinite expansion
+			// of generic types (e.g., type Deep<T> = { next: Deep<Deep<T>> }). For concrete type
+			// references (e.g., Array<SomeInterface>), we use the type itself as identity to avoid false
+			// positives in isDeeplyNestedType where different concrete instantiations of the same generic
+			// type incorrectly appear to be recursive.
+			if !isTypeReferenceWithGenericArguments(t) {
+				return asRecursionId(t)
+			}
 		}
 		if t.symbol != nil && !(t.objectFlags&ObjectFlagsAnonymous != 0 && t.symbol.Flags&ast.SymbolFlagsClass != 0) {
 			// We track object types that have a symbol by that symbol (representing the origin of the type), but

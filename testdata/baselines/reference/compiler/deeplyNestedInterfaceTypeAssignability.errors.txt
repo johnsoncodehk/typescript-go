@@ -1,0 +1,78 @@
+test.ts(7,7): error TS2322: Type 'import("b/outer").Outer' is not assignable to type 'import("a/outer").Outer'.
+  Types of property 'inners' are incompatible.
+    Type 'import("b/inner").Inner[]' is not assignable to type 'import("a/inner").Inner[]'.
+      Type 'import("b/inner").Inner' is not assignable to type 'import("a/inner").Inner'.
+        Types of property 'mids' are incompatible.
+          Type 'import("b/leaf").Mid[]' is not assignable to type 'import("a/leaf").Mid[]'.
+            Type 'import("b/leaf").Mid' is not assignable to type 'import("a/leaf").Mid'.
+              Types of property 'leaves' are incompatible.
+                Type 'import("b/leaf").Leaf[]' is not assignable to type 'import("a/leaf").Leaf[]'.
+                  Property 'id' is missing in type 'import("b/leaf").Leaf' but required in type 'import("a/leaf").Leaf'.
+
+
+==== test.ts (1 errors) ====
+    import type { Outer as Target } from "./a/outer";
+    import type { Outer as Source } from "./b/outer";
+    
+    // Should error: b/leaf.ts Leaf is missing 'id' required by a/leaf.ts Leaf.
+    // tsc reports this. tsgo misses it when types are nested 3+ import levels deep with arrays.
+    declare function getSource(): Source;
+    const target: Target = getSource();
+          ~~~~~~
+!!! error TS2322: Type 'import("b/outer").Outer' is not assignable to type 'import("a/outer").Outer'.
+!!! error TS2322:   Types of property 'inners' are incompatible.
+!!! error TS2322:     Type 'import("b/inner").Inner[]' is not assignable to type 'import("a/inner").Inner[]'.
+!!! error TS2322:       Type 'import("b/inner").Inner' is not assignable to type 'import("a/inner").Inner'.
+!!! error TS2322:         Types of property 'mids' are incompatible.
+!!! error TS2322:           Type 'import("b/leaf").Mid[]' is not assignable to type 'import("a/leaf").Mid[]'.
+!!! error TS2322:             Type 'import("b/leaf").Mid' is not assignable to type 'import("a/leaf").Mid'.
+!!! error TS2322:               Types of property 'leaves' are incompatible.
+!!! error TS2322:                 Type 'import("b/leaf").Leaf[]' is not assignable to type 'import("a/leaf").Leaf[]'.
+!!! error TS2322:                   Property 'id' is missing in type 'import("b/leaf").Leaf' but required in type 'import("a/leaf").Leaf'.
+!!! related TS2728 a/leaf.ts:2:3: 'id' is declared here.
+    
+==== a/outer.ts (0 errors) ====
+    import type { Inner } from "./inner";
+    
+    export interface Outer {
+      inners: Inner[];
+    }
+    
+==== a/inner.ts (0 errors) ====
+    import type { Mid } from "./leaf";
+    
+    export interface Inner {
+      mids: Mid[];
+    }
+    
+==== a/leaf.ts (0 errors) ====
+    export interface Leaf {
+      id: string;
+    }
+    
+    export interface Mid {
+      leaves: Leaf[];
+    }
+    
+==== b/outer.ts (0 errors) ====
+    import type { Inner } from "./inner";
+    
+    export interface Outer {
+      inners: Inner[];
+    }
+    
+==== b/inner.ts (0 errors) ====
+    import type { Mid } from "./leaf";
+    
+    export interface Inner {
+      mids: Mid[];
+    }
+    
+==== b/leaf.ts (0 errors) ====
+    export interface Leaf {
+    }
+    
+    export interface Mid {
+      leaves: Leaf[];
+    }
+    
