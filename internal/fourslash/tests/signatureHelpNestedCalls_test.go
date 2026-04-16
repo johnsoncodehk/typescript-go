@@ -27,14 +27,14 @@ let s = foo(/*a*/ /*b*/bar/*c*/(/*d*/"hello"/*e*/)/*f*/);`
 	f.GoToMarker(t, "c")
 	f.VerifySignatureHelp(t, fourslash.VerifySignatureHelpOptions{Text: "foo(s: string): string"})
 
-	// Marker d should show bar (inside inner call)
+	// Markers d, e should show bar (inside inner call, including the end boundary)
 	f.GoToMarker(t, "d")
 	f.VerifySignatureHelp(t, fourslash.VerifySignatureHelpOptions{Text: "bar(s: string): string"})
 
-	// Markers e, f should show foo (after inner call)
 	f.GoToMarker(t, "e")
-	f.VerifySignatureHelp(t, fourslash.VerifySignatureHelpOptions{Text: "foo(s: string): string"})
+	f.VerifySignatureHelp(t, fourslash.VerifySignatureHelpOptions{Text: "bar(s: string): string"})
 
+	// Marker f should show foo (after the inner call closes)
 	f.GoToMarker(t, "f")
 	f.VerifySignatureHelp(t, fourslash.VerifySignatureHelpOptions{Text: "foo(s: string): string"})
 }
