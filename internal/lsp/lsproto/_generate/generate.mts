@@ -167,7 +167,6 @@ const customStructures: Structure[] = [
         ],
     },
     {
-        // Longer-term, we may just want to use TextEdit.
         name: "CustomClosingTagCompletion",
         properties: [
             {
@@ -175,8 +174,74 @@ const customStructures: Structure[] = [
                 type: { kind: "base", name: "string" },
                 documentation: "The text to insert at the closing tag position.",
             },
+            {
+                name: "vsTextEdit",
+                jsonName: "_vs_textEdit",
+                type: { kind: "reference", name: "TextEdit" },
+                documentation: "The text edit to apply for the closing tag insertion (VS format).",
+            },
+            {
+                name: "vsTextEditFormat",
+                jsonName: "_vs_textEditFormat",
+                type: { kind: "reference", name: "InsertTextFormat" },
+                documentation: "The format of the text edit (plaintext or snippet) (VS format).",
+            },
         ],
         documentation: "CustomClosingTagCompletion is the response for the custom/textDocument/closingTagCompletion request.",
+    },
+    {
+        name: "VsOnAutoInsertOptions",
+        properties: [
+            {
+                name: "triggerCharacters",
+                jsonName: "_vs_triggerCharacters",
+                type: { kind: "array", element: { kind: "base", name: "string" } },
+                documentation: "List of trigger characters that trigger auto-insert.",
+            },
+        ],
+        documentation: "Options for the textDocument/_vs_onAutoInsert provider capability.",
+    },
+    {
+        name: "VsOnAutoInsertParams",
+        properties: [
+            {
+                name: "textDocument",
+                jsonName: "_vs_textDocument",
+                type: { kind: "reference", name: "TextDocumentIdentifier" },
+                documentation: "The text document.",
+            },
+            {
+                name: "position",
+                jsonName: "_vs_position",
+                type: { kind: "reference", name: "Position" },
+                documentation: "The position inside the text document.",
+            },
+            {
+                name: "character",
+                jsonName: "_vs_ch",
+                type: { kind: "base", name: "string" },
+                documentation: "The character that triggered the auto-insert.",
+            },
+        ],
+        documentation: "Parameters for the textDocument/_vs_onAutoInsert request.",
+    },
+    {
+        name: "VsOnAutoInsertResponseItem",
+        properties: [
+            {
+                name: "textEditFormat",
+                jsonName: "_vs_textEditFormat",
+                type: { kind: "reference", name: "InsertTextFormat" },
+                documentation: "The format of the text edit (plaintext or snippet).",
+            },
+            {
+                name: "textEdit",
+                jsonName: "_vs_textEdit",
+                type: { kind: "reference", name: "TextEdit" },
+                documentation: "The text edit to apply for the auto-insertion.",
+            },
+        ],
+        documentation: "Response item for the textDocument/_vs_onAutoInsert request.",
     },
     {
         name: "RequestFailureTelemetryEvent",
@@ -572,6 +637,20 @@ const customRequests: Request[] = [
         messageDirection: "clientToServer",
         documentation: "Request to get document highlights across multiple files.",
     },
+    {
+        method: "textDocument/_vs_onAutoInsert",
+        typeName: "VsOnAutoInsertRequest",
+        params: { kind: "reference", name: "VsOnAutoInsertParams" },
+        result: {
+            kind: "or",
+            items: [
+                { kind: "reference", name: "VsOnAutoInsertResponseItem" },
+                { kind: "base", name: "null" },
+            ],
+        },
+        messageDirection: "clientToServer",
+        documentation: "Request for auto-insert when a trigger character is typed (VS-specific).",
+    },
 ];
 
 const customTypeAliases: TypeAlias[] = [
@@ -665,6 +744,13 @@ function patchAndPreprocessModel() {
                 type: { kind: "base", name: "boolean" },
                 optional: true,
                 documentation: "The server provides source definition support via custom/textDocument/sourceDefinition.",
+            });
+            structure.properties.push({
+                name: "vsOnAutoInsertProvider",
+                jsonName: "_vs_onAutoInsertProvider",
+                type: { kind: "reference", name: "VsOnAutoInsertOptions" },
+                optional: true,
+                documentation: "Provider options for the VS auto-insert feature via textDocument/_vs_onAutoInsert.",
             });
         }
 
@@ -1843,14 +1929,14 @@ function generateCode() {
                 const refStructure = model.structures.find(s => s.name === type.name);
                 if (refStructure) {
                     // Use a named type for the resolved version
-                    lines.push(`${indent}${goFieldName(prop)} Resolved${type.name} \`json:"${prop.name},omitzero"\``);
+                    lines.push(`${indent}${goFieldName(prop)} Resolved${type.name} \`json:"${prop.jsonName ?? prop.name},omitzero"\``);
                     continue;
                 }
             }
 
             // For other types (primitives, enums, arrays, etc.), use the type directly (no pointer)
             const goType = type.name;
-            lines.push(`${indent}${goFieldName(prop)} ${goType} \`json:"${prop.name},omitzero"\``);
+            lines.push(`${indent}${goFieldName(prop)} ${goType} \`json:"${prop.jsonName ?? prop.name},omitzero"\``);
         }
 
         return lines;
@@ -1993,7 +2079,7 @@ function generateCode() {
                 const useOmitzero = prop.optional || prop.omitzeroValue;
                 const goType = (prop.optional || type.needsPointer) && !prop.omitzeroValue ? `*${type.name}` : type.name;
 
-                writeLine(`\t${goFieldName(prop)} ${goType} \`json:"${prop.name}${useOmitzero ? ",omitzero" : ""}"\``);
+                writeLine(`\t${goFieldName(prop)} ${goType} \`json:"${prop.jsonName ?? prop.name}${useOmitzero ? ",omitzero" : ""}"\``);
 
                 if (includeDocumentation) {
                     writeLine("");
@@ -2096,7 +2182,7 @@ function generateCode() {
             writeLine(`\t\tswitch string(name) {`);
 
             for (const prop of structure.properties) {
-                writeLine(`\t\tcase \`"${prop.name}"\`:`);
+                writeLine(`\t\tcase \`"${prop.jsonName ?? prop.name}"\`:`);
                 if (!prop.optional && !prop.omitzeroValue) {
                     writeLine(`\t\t\tmissing &^= missing${goFieldName(prop)}`);
                 }
@@ -2106,7 +2192,7 @@ function generateCode() {
                 const goTypeAcceptsNull = (prop.optional || resolvedType.needsPointer || resolvedType.name.startsWith("[]") || resolvedType.name.startsWith("map[")) && !prop.omitzeroValue;
                 if (goTypeAcceptsNull && !typeCanBeNull(prop.type)) {
                     writeLine(`\t\t\tif dec.PeekKind() == 'n' {`);
-                    writeLine(`\t\t\t\treturn errNull("${prop.name}")`);
+                    writeLine(`\t\t\t\treturn errNull("${prop.jsonName ?? prop.name}")`);
                     writeLine(`\t\t\t}`);
                 }
                 writeLine(`\t\t\tif err := json.UnmarshalDecode(dec, &s.${goFieldName(prop)}); err != nil {`);
@@ -2132,7 +2218,7 @@ function generateCode() {
                 writeLine(`\t\tvar missingProps []string`);
                 for (const prop of requiredProps) {
                     writeLine(`\t\tif missing&missing${goFieldName(prop)} != 0 {`);
-                    writeLine(`\t\t\tmissingProps = append(missingProps, "${prop.name}")`);
+                    writeLine(`\t\t\tmissingProps = append(missingProps, "${prop.jsonName ?? prop.name}")`);
                     writeLine(`\t\t}`);
                 }
                 writeLine(`\t\treturn errMissing(missingProps)`);

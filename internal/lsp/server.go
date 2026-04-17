@@ -725,6 +725,7 @@ var handlers = sync.OnceValue(func() handlerMap {
 	registerLanguageServiceWithAutoImportsRequestHandler(handlers, lsproto.TextDocumentCodeActionInfo, (*Server).handleCodeAction)
 
 	registerLanguageServiceDocumentRequestHandler(handlers, lsproto.CustomTextDocumentClosingTagCompletionInfo, (*Server).handleClosingTagCompletion)
+	registerLanguageServiceDocumentRequestHandler(handlers, lsproto.TextDocument_vs_onAutoInsertInfo, (*Server).handleVsOnAutoInsert)
 
 	registerMultiProjectReferenceRequestHandler(handlers, lsproto.TextDocumentReferencesInfo, (*ls.LanguageService).ProvideReferences)
 	registerRequestHandler(handlers, lsproto.TextDocumentRenameInfo, (*Server).handleRename)
@@ -1094,6 +1095,9 @@ func (s *Server) handleInitialize(ctx context.Context, params *lsproto.Initializ
 			},
 			CustomSourceDefinitionProvider:       new(true),
 			CustomMultiDocumentHighlightProvider: new(true),
+			VsOnAutoInsertProvider: &lsproto.VsOnAutoInsertOptions{
+				TriggerCharacters: []string{">"},
+			},
 			Workspace: &lsproto.WorkspaceOptions{
 				FileOperations: &lsproto.FileOperationOptions{
 					WillRename: &lsproto.FileOperationRegistrationOptions{
@@ -1448,6 +1452,27 @@ func (s *Server) handleFoldingRange(ctx context.Context, ls *ls.LanguageService,
 
 func (s *Server) handleClosingTagCompletion(ctx context.Context, ls *ls.LanguageService, params *lsproto.TextDocumentPositionParams) (lsproto.CustomClosingTagCompletionResponse, error) {
 	return ls.ProvideClosingTagCompletion(ctx, params)
+}
+
+func (s *Server) handleVsOnAutoInsert(ctx context.Context, ls *ls.LanguageService, params *lsproto.VsOnAutoInsertParams) (lsproto.VsOnAutoInsertResponse, error) {
+	if params.Character == ">" {
+		closingTag, err := ls.ProvideClosingTagCompletion(ctx, &lsproto.TextDocumentPositionParams{
+			TextDocument: params.TextDocument,
+			Position:     params.Position,
+		})
+		if err != nil {
+			return lsproto.VsOnAutoInsertResponse{}, err
+		}
+		if closingTag.CustomClosingTagCompletion != nil {
+			return lsproto.VsOnAutoInsertResponse{
+				VsOnAutoInsertResponseItem: &lsproto.VsOnAutoInsertResponseItem{
+					TextEditFormat: closingTag.CustomClosingTagCompletion.VsTextEditFormat,
+					TextEdit:       closingTag.CustomClosingTagCompletion.VsTextEdit,
+				},
+			}, nil
+		}
+	}
+	return lsproto.VsOnAutoInsertResponse{}, nil
 }
 
 func (s *Server) handleLinkedEditingRange(ctx context.Context, ls *ls.LanguageService, params *lsproto.LinkedEditingRangeParams) (lsproto.LinkedEditingRangeResponse, error) {

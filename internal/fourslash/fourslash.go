@@ -3746,6 +3746,9 @@ func (f *FourslashTest) VerifyBaselineClosingTags(t *testing.T) {
 	})
 
 	getRange := func(item *lsproto.CustomClosingTagCompletion) *lsproto.Range {
+		if item != nil && item.VsTextEdit != nil {
+			return &item.VsTextEdit.Range
+		}
 		return nil
 	}
 

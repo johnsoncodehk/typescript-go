@@ -345,6 +345,12 @@ export type Property = {
 	 * Custom extension for special value types.
 	 */
 	omitzeroValue?: boolean;
+
+	/**
+	 * Override the JSON field name for serialization.
+	 * If omitted, the property name is used.
+	 */
+	jsonName?: string;
 };
 
 /**

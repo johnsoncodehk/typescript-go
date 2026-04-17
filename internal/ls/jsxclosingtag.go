@@ -27,9 +27,15 @@ func (l *LanguageService) ProvideClosingTagCompletion(ctx context.Context, param
 
 	if element != nil && isUnclosedTag(element.AsJsxElement()) {
 		tagNameNode := element.AsJsxElement().OpeningElement.TagName()
+		// Slight divergence from Strada - we don't use the verbatim text from the opening tag.
+		closingText := "</" + ast.EntityNameToString(tagNameNode, scanner.GetTextOfNode) + ">"
 		result := lsproto.CustomClosingTagCompletion{
-			// Slight divergence from Strada - we don't use the verbatim text from the opening tag.
-			NewText: "</" + ast.EntityNameToString(tagNameNode, scanner.GetTextOfNode) + ">",
+			NewText: closingText,
+			VsTextEdit: &lsproto.TextEdit{
+				Range:   lsproto.Range{Start: params.Position, End: params.Position},
+				NewText: "$0" + closingText,
+			},
+			VsTextEditFormat: lsproto.InsertTextFormatSnippet,
 		}
 		return lsproto.CustomClosingTagCompletionResponse{CustomClosingTagCompletion: &result}, nil
 	}
@@ -44,6 +50,11 @@ func (l *LanguageService) ProvideClosingTagCompletion(ctx context.Context, param
 	if fragment != nil && isUnclosedFragment(fragment.AsJsxFragment()) {
 		result := lsproto.CustomClosingTagCompletion{
 			NewText: "</>",
+			VsTextEdit: &lsproto.TextEdit{
+				Range:   lsproto.Range{Start: params.Position, End: params.Position},
+				NewText: "$0</>",
+			},
+			VsTextEditFormat: lsproto.InsertTextFormatSnippet,
 		}
 		return lsproto.CustomClosingTagCompletionResponse{CustomClosingTagCompletion: &result}, nil
 	}
