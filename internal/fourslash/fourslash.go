@@ -899,7 +899,7 @@ func (f *FourslashTest) openFile(t *testing.T, filename string) {
 	f.baselineProjectsAfterNotification(t, filename)
 }
 
-// OpenFile opens a file via LSP didOpen, making it a root of the inferred project.
+// OpenFile opens a file via LSP didOpen.
 func (f *FourslashTest) OpenFile(t *testing.T, filename string) {
 	t.Helper()
 	f.openFile(t, filename)
