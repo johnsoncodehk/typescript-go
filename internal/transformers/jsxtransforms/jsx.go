@@ -932,11 +932,11 @@ func decodeEntity(entity string) (rune, bool) {
 		return rune(parsed), true
 	}
 
-	r, ok := entities[entity]
+	r, ok := entities.Get(entity)
 	return r, ok
 }
 
-var entities = map[string]rune{
+var entities = collections.NewFrozenMap(map[string]rune{
 	"quot":     0x0022,
 	"amp":      0x0026,
 	"apos":     0x0027,
@@ -1190,4 +1190,4 @@ var entities = map[string]rune{
 	"clubs":    0x2663,
 	"hearts":   0x2665,
 	"diams":    0x2666,
-}
+})

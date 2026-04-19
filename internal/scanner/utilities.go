@@ -54,7 +54,7 @@ func tokenIsIdentifierOrKeyword(token ast.Kind) bool {
 }
 
 func IdentifierToKeywordKind(node *ast.Identifier) ast.Kind {
-	return textToKeyword[node.Text]
+	return textToKeyword.GetOrZero(node.Text)
 }
 
 func GetSourceTextOfNodeFromSourceFile(sourceFile *ast.SourceFile, node *ast.Node, includeTrivia bool) string {
