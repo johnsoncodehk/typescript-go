@@ -52,11 +52,11 @@ func buildClosingTagResponse(ctx context.Context, position lsproto.Position, clo
 	}
 	if lsproto.GetClientCapabilities(ctx).VSSupportsVisualStudioExtensions {
 		snippetFormat := lsproto.InsertTextFormatSnippet
-		result.VsTextEdit = &lsproto.TextEdit{
+		result.VSTextEdit = &lsproto.TextEdit{
 			Range:   lsproto.Range{Start: position, End: position},
 			NewText: "$0" + closingText,
 		}
-		result.VsTextEditFormat = &snippetFormat
+		result.VSTextEditFormat = &snippetFormat
 	}
 	return lsproto.CustomClosingTagCompletionResponse{CustomClosingTagCompletion: &result}
 }

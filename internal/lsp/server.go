@@ -1095,8 +1095,8 @@ func (s *Server) handleInitialize(ctx context.Context, params *lsproto.Initializ
 			},
 			CustomSourceDefinitionProvider:       new(true),
 			CustomMultiDocumentHighlightProvider: new(true),
-			VsOnAutoInsertProvider: &lsproto.VsOnAutoInsertOptions{
-				TriggerCharacters: []string{">"},
+			VSOnAutoInsertProvider: &lsproto.VsOnAutoInsertOptions{
+				VSTriggerCharacters: []string{">"},
 			},
 			Workspace: &lsproto.WorkspaceOptions{
 				FileOperations: &lsproto.FileOperationOptions{
@@ -1455,19 +1455,19 @@ func (s *Server) handleClosingTagCompletion(ctx context.Context, ls *ls.Language
 }
 
 func (s *Server) handleVsOnAutoInsert(ctx context.Context, ls *ls.LanguageService, params *lsproto.VsOnAutoInsertParams) (lsproto.VsOnAutoInsertResponse, error) {
-	if params.Character == ">" {
+	if params.VSCh == ">" {
 		closingTag, err := ls.ProvideClosingTagCompletion(ctx, &lsproto.TextDocumentPositionParams{
-			TextDocument: params.TextDocument,
-			Position:     params.Position,
+			TextDocument: params.VSTextDocument,
+			Position:     params.VSPosition,
 		})
 		if err != nil {
 			return lsproto.VsOnAutoInsertResponse{}, err
 		}
-		if closingTag.CustomClosingTagCompletion != nil && closingTag.CustomClosingTagCompletion.VsTextEdit != nil {
+		if closingTag.CustomClosingTagCompletion != nil && closingTag.CustomClosingTagCompletion.VSTextEdit != nil {
 			return lsproto.VsOnAutoInsertResponse{
 				VsOnAutoInsertResponseItem: &lsproto.VsOnAutoInsertResponseItem{
-					TextEditFormat: *closingTag.CustomClosingTagCompletion.VsTextEditFormat,
-					TextEdit:       closingTag.CustomClosingTagCompletion.VsTextEdit,
+					VSTextEditFormat: *closingTag.CustomClosingTagCompletion.VSTextEditFormat,
+					VSTextEdit:       closingTag.CustomClosingTagCompletion.VSTextEdit,
 				},
 			}, nil
 		}

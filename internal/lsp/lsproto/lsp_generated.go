@@ -17162,7 +17162,7 @@ type ServerCapabilities struct {
 	CustomSourceDefinitionProvider *bool `json:"customSourceDefinitionProvider,omitzero"`
 
 	// Provider options for the VS auto-insert feature via textDocument/_vs_onAutoInsert.
-	VsOnAutoInsertProvider *VsOnAutoInsertOptions `json:"_vs_onAutoInsertProvider,omitzero"`
+	VSOnAutoInsertProvider *VsOnAutoInsertOptions `json:"_vs_onAutoInsertProvider,omitzero"`
 
 	// The server provides multi-document highlight support via custom/textDocument/multiDocumentHighlight.
 	CustomMultiDocumentHighlightProvider *bool `json:"customMultiDocumentHighlightProvider,omitzero"`
@@ -17433,7 +17433,7 @@ func (s *ServerCapabilities) UnmarshalJSONFrom(dec *json.Decoder) error {
 			if dec.PeekKind() == 'n' {
 				return errNull("_vs_onAutoInsertProvider")
 			}
-			if err := json.UnmarshalDecode(dec, &s.VsOnAutoInsertProvider); err != nil {
+			if err := json.UnmarshalDecode(dec, &s.VSOnAutoInsertProvider); err != nil {
 				return err
 			}
 		case `"customMultiDocumentHighlightProvider"`:
@@ -28392,10 +28392,10 @@ type CustomClosingTagCompletion struct {
 	NewText string `json:"newText"`
 
 	// The text edit to apply for the closing tag insertion (VS format). Only set when the client is VS.
-	VsTextEdit *TextEdit `json:"_vs_textEdit,omitzero"`
+	VSTextEdit *TextEdit `json:"_vs_textEdit,omitzero"`
 
 	// The format of the text edit (plaintext or snippet) (VS format). Only set when the client is VS.
-	VsTextEditFormat *InsertTextFormat `json:"_vs_textEditFormat,omitzero"`
+	VSTextEditFormat *InsertTextFormat `json:"_vs_textEditFormat,omitzero"`
 }
 
 var _ json.UnmarshalerFrom = (*CustomClosingTagCompletion)(nil)
@@ -28429,14 +28429,14 @@ func (s *CustomClosingTagCompletion) UnmarshalJSONFrom(dec *json.Decoder) error 
 			if dec.PeekKind() == 'n' {
 				return errNull("_vs_textEdit")
 			}
-			if err := json.UnmarshalDecode(dec, &s.VsTextEdit); err != nil {
+			if err := json.UnmarshalDecode(dec, &s.VSTextEdit); err != nil {
 				return err
 			}
 		case `"_vs_textEditFormat"`:
 			if dec.PeekKind() == 'n' {
 				return errNull("_vs_textEditFormat")
 			}
-			if err := json.UnmarshalDecode(dec, &s.VsTextEditFormat); err != nil {
+			if err := json.UnmarshalDecode(dec, &s.VSTextEditFormat); err != nil {
 				return err
 			}
 		default:
@@ -28464,14 +28464,14 @@ func (s *CustomClosingTagCompletion) UnmarshalJSONFrom(dec *json.Decoder) error 
 // Options for the textDocument/_vs_onAutoInsert provider capability.
 type VsOnAutoInsertOptions struct {
 	// List of trigger characters that trigger auto-insert.
-	TriggerCharacters []string `json:"_vs_triggerCharacters"`
+	VSTriggerCharacters []string `json:"_vs_triggerCharacters"`
 }
 
 var _ json.UnmarshalerFrom = (*VsOnAutoInsertOptions)(nil)
 
 func (s *VsOnAutoInsertOptions) UnmarshalJSONFrom(dec *json.Decoder) error {
 	const (
-		missingTriggerCharacters uint = 1 << iota
+		missingVSTriggerCharacters uint = 1 << iota
 		_missingLast
 	)
 	missing := _missingLast - 1
@@ -28490,11 +28490,11 @@ func (s *VsOnAutoInsertOptions) UnmarshalJSONFrom(dec *json.Decoder) error {
 		}
 		switch string(name) {
 		case `"_vs_triggerCharacters"`:
-			missing &^= missingTriggerCharacters
+			missing &^= missingVSTriggerCharacters
 			if dec.PeekKind() == 'n' {
 				return errNull("_vs_triggerCharacters")
 			}
-			if err := json.UnmarshalDecode(dec, &s.TriggerCharacters); err != nil {
+			if err := json.UnmarshalDecode(dec, &s.VSTriggerCharacters); err != nil {
 				return err
 			}
 		default:
@@ -28510,7 +28510,7 @@ func (s *VsOnAutoInsertOptions) UnmarshalJSONFrom(dec *json.Decoder) error {
 
 	if missing != 0 {
 		var missingProps []string
-		if missing&missingTriggerCharacters != 0 {
+		if missing&missingVSTriggerCharacters != 0 {
 			missingProps = append(missingProps, "_vs_triggerCharacters")
 		}
 		return errMissing(missingProps)
@@ -28522,30 +28522,30 @@ func (s *VsOnAutoInsertOptions) UnmarshalJSONFrom(dec *json.Decoder) error {
 // Parameters for the textDocument/_vs_onAutoInsert request.
 type VsOnAutoInsertParams struct {
 	// The text document.
-	TextDocument TextDocumentIdentifier `json:"_vs_textDocument"`
+	VSTextDocument TextDocumentIdentifier `json:"_vs_textDocument"`
 
 	// The position inside the text document.
-	Position Position `json:"_vs_position"`
+	VSPosition Position `json:"_vs_position"`
 
 	// The character that triggered the auto-insert.
-	Character string `json:"_vs_ch"`
+	VSCh string `json:"_vs_ch"`
 }
 
 func (s *VsOnAutoInsertParams) TextDocumentURI() DocumentUri {
-	return s.TextDocument.Uri
+	return s.VSTextDocument.Uri
 }
 
 func (s *VsOnAutoInsertParams) TextDocumentPosition() Position {
-	return s.Position
+	return s.VSPosition
 }
 
 var _ json.UnmarshalerFrom = (*VsOnAutoInsertParams)(nil)
 
 func (s *VsOnAutoInsertParams) UnmarshalJSONFrom(dec *json.Decoder) error {
 	const (
-		missingTextDocument uint = 1 << iota
-		missingPosition
-		missingCharacter
+		missingVSTextDocument uint = 1 << iota
+		missingVSPosition
+		missingVSCh
 		_missingLast
 	)
 	missing := _missingLast - 1
@@ -28564,18 +28564,18 @@ func (s *VsOnAutoInsertParams) UnmarshalJSONFrom(dec *json.Decoder) error {
 		}
 		switch string(name) {
 		case `"_vs_textDocument"`:
-			missing &^= missingTextDocument
-			if err := json.UnmarshalDecode(dec, &s.TextDocument); err != nil {
+			missing &^= missingVSTextDocument
+			if err := json.UnmarshalDecode(dec, &s.VSTextDocument); err != nil {
 				return err
 			}
 		case `"_vs_position"`:
-			missing &^= missingPosition
-			if err := json.UnmarshalDecode(dec, &s.Position); err != nil {
+			missing &^= missingVSPosition
+			if err := json.UnmarshalDecode(dec, &s.VSPosition); err != nil {
 				return err
 			}
 		case `"_vs_ch"`:
-			missing &^= missingCharacter
-			if err := json.UnmarshalDecode(dec, &s.Character); err != nil {
+			missing &^= missingVSCh
+			if err := json.UnmarshalDecode(dec, &s.VSCh); err != nil {
 				return err
 			}
 		default:
@@ -28591,13 +28591,13 @@ func (s *VsOnAutoInsertParams) UnmarshalJSONFrom(dec *json.Decoder) error {
 
 	if missing != 0 {
 		var missingProps []string
-		if missing&missingTextDocument != 0 {
+		if missing&missingVSTextDocument != 0 {
 			missingProps = append(missingProps, "_vs_textDocument")
 		}
-		if missing&missingPosition != 0 {
+		if missing&missingVSPosition != 0 {
 			missingProps = append(missingProps, "_vs_position")
 		}
-		if missing&missingCharacter != 0 {
+		if missing&missingVSCh != 0 {
 			missingProps = append(missingProps, "_vs_ch")
 		}
 		return errMissing(missingProps)
@@ -28609,18 +28609,18 @@ func (s *VsOnAutoInsertParams) UnmarshalJSONFrom(dec *json.Decoder) error {
 // Response item for the textDocument/_vs_onAutoInsert request.
 type VsOnAutoInsertResponseItem struct {
 	// The format of the text edit (plaintext or snippet).
-	TextEditFormat InsertTextFormat `json:"_vs_textEditFormat"`
+	VSTextEditFormat InsertTextFormat `json:"_vs_textEditFormat"`
 
 	// The text edit to apply for the auto-insertion.
-	TextEdit *TextEdit `json:"_vs_textEdit"`
+	VSTextEdit *TextEdit `json:"_vs_textEdit"`
 }
 
 var _ json.UnmarshalerFrom = (*VsOnAutoInsertResponseItem)(nil)
 
 func (s *VsOnAutoInsertResponseItem) UnmarshalJSONFrom(dec *json.Decoder) error {
 	const (
-		missingTextEditFormat uint = 1 << iota
-		missingTextEdit
+		missingVSTextEditFormat uint = 1 << iota
+		missingVSTextEdit
 		_missingLast
 	)
 	missing := _missingLast - 1
@@ -28639,16 +28639,16 @@ func (s *VsOnAutoInsertResponseItem) UnmarshalJSONFrom(dec *json.Decoder) error 
 		}
 		switch string(name) {
 		case `"_vs_textEditFormat"`:
-			missing &^= missingTextEditFormat
-			if err := json.UnmarshalDecode(dec, &s.TextEditFormat); err != nil {
+			missing &^= missingVSTextEditFormat
+			if err := json.UnmarshalDecode(dec, &s.VSTextEditFormat); err != nil {
 				return err
 			}
 		case `"_vs_textEdit"`:
-			missing &^= missingTextEdit
+			missing &^= missingVSTextEdit
 			if dec.PeekKind() == 'n' {
 				return errNull("_vs_textEdit")
 			}
-			if err := json.UnmarshalDecode(dec, &s.TextEdit); err != nil {
+			if err := json.UnmarshalDecode(dec, &s.VSTextEdit); err != nil {
 				return err
 			}
 		default:
@@ -28664,10 +28664,10 @@ func (s *VsOnAutoInsertResponseItem) UnmarshalJSONFrom(dec *json.Decoder) error 
 
 	if missing != 0 {
 		var missingProps []string
-		if missing&missingTextEditFormat != 0 {
+		if missing&missingVSTextEditFormat != 0 {
 			missingProps = append(missingProps, "_vs_textEditFormat")
 		}
-		if missing&missingTextEdit != 0 {
+		if missing&missingVSTextEdit != 0 {
 			missingProps = append(missingProps, "_vs_textEdit")
 		}
 		return errMissing(missingProps)

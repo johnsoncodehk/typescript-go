@@ -175,15 +175,13 @@ const customStructures: Structure[] = [
                 documentation: "The text to insert at the closing tag position.",
             },
             {
-                name: "vsTextEdit",
-                jsonName: "_vs_textEdit",
+                name: "_vs_textEdit",
                 type: { kind: "reference", name: "TextEdit" },
                 optional: true,
                 documentation: "The text edit to apply for the closing tag insertion (VS format). Only set when the client is VS.",
             },
             {
-                name: "vsTextEditFormat",
-                jsonName: "_vs_textEditFormat",
+                name: "_vs_textEditFormat",
                 type: { kind: "reference", name: "InsertTextFormat" },
                 optional: true,
                 documentation: "The format of the text edit (plaintext or snippet) (VS format). Only set when the client is VS.",
@@ -195,8 +193,7 @@ const customStructures: Structure[] = [
         name: "VsOnAutoInsertOptions",
         properties: [
             {
-                name: "triggerCharacters",
-                jsonName: "_vs_triggerCharacters",
+                name: "_vs_triggerCharacters",
                 type: { kind: "array", element: { kind: "base", name: "string" } },
                 documentation: "List of trigger characters that trigger auto-insert.",
             },
@@ -207,20 +204,17 @@ const customStructures: Structure[] = [
         name: "VsOnAutoInsertParams",
         properties: [
             {
-                name: "textDocument",
-                jsonName: "_vs_textDocument",
+                name: "_vs_textDocument",
                 type: { kind: "reference", name: "TextDocumentIdentifier" },
                 documentation: "The text document.",
             },
             {
-                name: "position",
-                jsonName: "_vs_position",
+                name: "_vs_position",
                 type: { kind: "reference", name: "Position" },
                 documentation: "The position inside the text document.",
             },
             {
-                name: "character",
-                jsonName: "_vs_ch",
+                name: "_vs_ch",
                 type: { kind: "base", name: "string" },
                 documentation: "The character that triggered the auto-insert.",
             },
@@ -231,14 +225,12 @@ const customStructures: Structure[] = [
         name: "VsOnAutoInsertResponseItem",
         properties: [
             {
-                name: "textEditFormat",
-                jsonName: "_vs_textEditFormat",
+                name: "_vs_textEditFormat",
                 type: { kind: "reference", name: "InsertTextFormat" },
                 documentation: "The format of the text edit (plaintext or snippet).",
             },
             {
-                name: "textEdit",
-                jsonName: "_vs_textEdit",
+                name: "_vs_textEdit",
                 type: { kind: "reference", name: "TextEdit" },
                 documentation: "The text edit to apply for the auto-insertion.",
             },
@@ -748,8 +740,7 @@ function patchAndPreprocessModel() {
                 documentation: "The server provides source definition support via custom/textDocument/sourceDefinition.",
             });
             structure.properties.push({
-                name: "vsOnAutoInsertProvider",
-                jsonName: "_vs_onAutoInsertProvider",
+                name: "_vs_onAutoInsertProvider",
                 type: { kind: "reference", name: "VsOnAutoInsertOptions" },
                 optional: true,
                 documentation: "Provider options for the VS auto-insert feature via textDocument/_vs_onAutoInsert.",
@@ -1931,14 +1922,14 @@ function generateCode() {
                 const refStructure = model.structures.find(s => s.name === type.name);
                 if (refStructure) {
                     // Use a named type for the resolved version
-                    lines.push(`${indent}${goFieldName(prop)} Resolved${type.name} \`json:"${prop.jsonName ?? prop.name},omitzero"\``);
+                    lines.push(`${indent}${goFieldName(prop)} Resolved${type.name} \`json:"${prop.name},omitzero"\``);
                     continue;
                 }
             }
 
             // For other types (primitives, enums, arrays, etc.), use the type directly (no pointer)
             const goType = type.name;
-            lines.push(`${indent}${goFieldName(prop)} ${goType} \`json:"${prop.jsonName ?? prop.name},omitzero"\``);
+            lines.push(`${indent}${goFieldName(prop)} ${goType} \`json:"${prop.name},omitzero"\``);
         }
 
         return lines;
@@ -2081,7 +2072,7 @@ function generateCode() {
                 const useOmitzero = prop.optional || prop.omitzeroValue;
                 const goType = (prop.optional || type.needsPointer) && !prop.omitzeroValue ? `*${type.name}` : type.name;
 
-                writeLine(`\t${goFieldName(prop)} ${goType} \`json:"${prop.jsonName ?? prop.name}${useOmitzero ? ",omitzero" : ""}"\``);
+                writeLine(`\t${goFieldName(prop)} ${goType} \`json:"${prop.name}${useOmitzero ? ",omitzero" : ""}"\``);
 
                 if (includeDocumentation) {
                     writeLine("");
@@ -2104,15 +2095,19 @@ function generateCode() {
 
         if (hasTextDocumentURI(structure)) {
             // Generate TextDocumentURI method
+            const textDocProp = structure.properties?.find(p => (p.name === "textDocument" || p.name === "_vs_textDocument") && p.type.kind === "reference" && p.type.name === "TextDocumentIdentifier");
+            const textDocFieldName = textDocProp ? goFieldName(textDocProp) : "TextDocument";
             writeLine(`func (s *${structure.name}) TextDocumentURI() DocumentUri {`);
-            writeLine(`\treturn s.TextDocument.Uri`);
+            writeLine(`\treturn s.${textDocFieldName}.Uri`);
             writeLine(`}`);
             writeLine("");
 
             if (hasTextDocumentPosition(structure)) {
                 // Generate TextDocumentPosition method
+                const posProp = structure.properties?.find(p => (p.name === "position" || p.name === "_vs_position") && p.type.kind === "reference" && p.type.name === "Position");
+                const posFieldName = posProp ? goFieldName(posProp) : "Position";
                 writeLine(`func (s *${structure.name}) TextDocumentPosition() Position {`);
-                writeLine(`\treturn s.Position`);
+                writeLine(`\treturn s.${posFieldName}`);
                 writeLine(`}`);
                 writeLine("");
             }
@@ -2184,7 +2179,7 @@ function generateCode() {
             writeLine(`\t\tswitch string(name) {`);
 
             for (const prop of structure.properties) {
-                writeLine(`\t\tcase \`"${prop.jsonName ?? prop.name}"\`:`);
+                writeLine(`\t\tcase \`"${prop.name}"\`:`);
                 if (!prop.optional && !prop.omitzeroValue) {
                     writeLine(`\t\t\tmissing &^= missing${goFieldName(prop)}`);
                 }
@@ -2194,7 +2189,7 @@ function generateCode() {
                 const goTypeAcceptsNull = (prop.optional || resolvedType.needsPointer || resolvedType.name.startsWith("[]") || resolvedType.name.startsWith("map[")) && !prop.omitzeroValue;
                 if (goTypeAcceptsNull && !typeCanBeNull(prop.type)) {
                     writeLine(`\t\t\tif dec.PeekKind() == 'n' {`);
-                    writeLine(`\t\t\t\treturn errNull("${prop.jsonName ?? prop.name}")`);
+                    writeLine(`\t\t\t\treturn errNull("${prop.name}")`);
                     writeLine(`\t\t\t}`);
                 }
                 writeLine(`\t\t\tif err := json.UnmarshalDecode(dec, &s.${goFieldName(prop)}); err != nil {`);
@@ -2220,7 +2215,7 @@ function generateCode() {
                 writeLine(`\t\tvar missingProps []string`);
                 for (const prop of requiredProps) {
                     writeLine(`\t\tif missing&missing${goFieldName(prop)} != 0 {`);
-                    writeLine(`\t\t\tmissingProps = append(missingProps, "${prop.jsonName ?? prop.name}")`);
+                    writeLine(`\t\t\tmissingProps = append(missingProps, "${prop.name}")`);
                     writeLine(`\t\t}`);
                 }
                 writeLine(`\t\treturn errMissing(missingProps)`);
@@ -3273,11 +3268,13 @@ function hasSomeProp(structure: Structure, propName: string, propTypeName: strin
 }
 
 function hasTextDocumentURI(structure: Structure) {
-    return hasSomeProp(structure, "textDocument", "TextDocumentIdentifier");
+    return hasSomeProp(structure, "textDocument", "TextDocumentIdentifier") ||
+        hasSomeProp(structure, "_vs_textDocument", "TextDocumentIdentifier");
 }
 
 function hasTextDocumentPosition(structure: Structure) {
-    return hasSomeProp(structure, "position", "Position");
+    return hasSomeProp(structure, "position", "Position") ||
+        hasSomeProp(structure, "_vs_position", "Position");
 }
 
 function getLocationUriProperty(structure: Structure) {
