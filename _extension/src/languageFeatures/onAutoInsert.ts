@@ -68,6 +68,16 @@ class AutoInsert {
             return;
         }
 
+        // Compute the post-insert cursor position from the change itself;
+        // `activeEditor.selection.active` is not yet updated when this event fires.
+        const addedLines = lastChange.text.split(/\r\n|\n/g);
+        const position = addedLines.length === 1
+            ? lastChange.range.start.translate(0, lastChange.text.length)
+            : new vscode.Position(
+                lastChange.range.start.line + addedLines.length - 1,
+                addedLines[addedLines.length - 1].length,
+            );
+
         this.cancel?.cancel();
         this.cancel?.dispose();
         this.cancel = new vscode.CancellationTokenSource();
@@ -80,7 +90,7 @@ class AutoInsert {
                 "textDocument/_vs_onAutoInsert",
                 {
                     _vs_textDocument: this.client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-                    _vs_position: this.client.code2ProtocolConverter.asPosition(activeEditor.selection.active),
+                    _vs_position: this.client.code2ProtocolConverter.asPosition(position),
                     _vs_ch: lastCharacter,
                 } satisfies VsOnAutoInsertParams,
                 token,
@@ -104,18 +114,23 @@ class AutoInsert {
     }
 }
 
-function isAutoClosingTagsEnabled(languageConfigSection: "typescript" | "javascript", scope: vscode.ConfigurationScope): boolean {
-    return readUnifiedConfig("autoClosingTags.enabled", languageConfigSection, "autoClosingTags", scope, true);
+function isAutoClosingTagsEnabled(scope: vscode.TextDocument): boolean {
+    // Use the document's own language ("typescript" / "javascript" / "*react") to
+    // pick the fallback section so per-language overrides apply correctly.
+    const fallbackSection = scope.languageId === "javascript" || scope.languageId === "javascriptreact"
+        ? "javascript"
+        : "typescript";
+    return readUnifiedConfig("autoClosingTags.enabled", fallbackSection, "autoClosingTags", scope, true);
 }
 
-function requireActiveDocumentSetting(languageConfigSection: "typescript" | "javascript", selector: vscode.DocumentSelector) {
+function requireActiveDocumentSetting(selector: vscode.DocumentSelector) {
     return new Condition(
         () => {
             const activeDocument = vscode.window.activeTextEditor?.document;
             if (!activeDocument || !vscode.languages.match(selector, activeDocument)) {
                 return false;
             }
-            return isAutoClosingTagsEnabled(languageConfigSection, activeDocument);
+            return isAutoClosingTagsEnabled(activeDocument);
         },
         handler =>
             vscode.Disposable.from(
@@ -127,7 +142,6 @@ function requireActiveDocumentSetting(languageConfigSection: "typescript" | "jav
 }
 
 export function registerOnAutoInsertFeature(
-    languageConfigSection: "typescript" | "javascript",
     selector: vscode.DocumentSelector,
     client: LanguageClient,
 ): vscode.Disposable {
@@ -138,7 +152,7 @@ export function registerOnAutoInsertFeature(
     }
     const set = new Set(triggerCharacters);
     return conditionalRegistration(
-        [requireActiveDocumentSetting(languageConfigSection, selector)],
+        [requireActiveDocumentSetting(selector)],
         () => new AutoInsert(client, set),
     );
 }

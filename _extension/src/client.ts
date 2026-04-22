@@ -231,8 +231,7 @@ export class Client implements vscode.Disposable {
             registerMultiDocumentHighlightFeature(this.documentSelector, this.client),
             registerSourceDefinitionFeature(this.client),
             registerHoverFeature(this.documentSelector, this.client),
-            registerOnAutoInsertFeature("typescript", this.documentSelector, this.client),
-            registerOnAutoInsertFeature("javascript", this.documentSelector, this.client),
+            registerOnAutoInsertFeature(this.documentSelector, this.client),
         );
     }
 
