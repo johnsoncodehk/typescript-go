@@ -136,23 +136,17 @@ func (b *NodeBuilderImpl) expandClassDecl(symbol *ast.Symbol) *ast.Node {
 	// Heritage clauses
 	var heritageClauses []*ast.Node
 	if len(baseTypes) > 0 {
-		var extendsTypes []*ast.Node
-		for _, t := range baseTypes {
-			if expr := b.hoverExpressionWithTypeArguments(t, ast.SymbolFlagsValue); expr != nil {
-				extendsTypes = append(extendsTypes, expr)
-			}
-		}
+		extendsTypes := core.MapNonNil(baseTypes, func(t *Type) *ast.Node {
+			return b.hoverExpressionWithTypeArguments(t, ast.SymbolFlagsValue)
+		})
 		if len(extendsTypes) > 0 {
 			heritageClauses = append(heritageClauses, b.f.NewHeritageClause(ast.KindExtendsKeyword, b.f.NewNodeList(extendsTypes)))
 		}
 	}
 	if impls := b.getImplementsTypes(classType); len(impls) > 0 {
-		var implExprs []*ast.Node
-		for _, t := range impls {
-			if expr := b.hoverExpressionWithTypeArguments(t, ast.SymbolFlagsType); expr != nil {
-				implExprs = append(implExprs, expr)
-			}
-		}
+		implExprs := core.MapNonNil(impls, func(t *Type) *ast.Node {
+			return b.hoverExpressionWithTypeArguments(t, ast.SymbolFlagsType)
+		})
 		if len(implExprs) > 0 {
 			heritageClauses = append(heritageClauses, b.f.NewHeritageClause(ast.KindImplementsKeyword, b.f.NewNodeList(implExprs)))
 		}
