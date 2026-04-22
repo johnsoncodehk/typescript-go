@@ -3716,12 +3716,19 @@ func (f *FourslashTest) VerifyJsxClosingTag(t *testing.T, markersToNewText map[s
 			VSCh:       ">",
 		}
 
-		requestResult := sendRequest(t, f, lsproto.TextDocument_vs_onAutoInsertInfo, params)
+		requestResult := sendRequest(t, f, lsproto.TextDocumentVSOnAutoInsertInfo, params)
 
 		var actualText *string
 		if item := requestResult.VsOnAutoInsertResponseItem; item != nil && item.VSTextEdit != nil {
-			text := strings.TrimPrefix(item.VSTextEdit.NewText, "$0")
-			actualText = &text
+			newText := item.VSTextEdit.NewText
+			if item.VSTextEditFormat == lsproto.InsertTextFormatSnippet {
+				var ok bool
+				newText, ok = strings.CutPrefix(newText, "$0")
+				if !ok {
+					t.Fatalf("%sexpected JSX closing tag snippet to begin with $0, got %q", f.getCurrentPositionPrefix(), item.VSTextEdit.NewText)
+				}
+			}
+			actualText = &newText
 		}
 		assertDeepEqual(t, actualText, expectedText, f.getCurrentPositionPrefix()+"JSX closing tag text mismatch")
 	}
@@ -3744,14 +3751,14 @@ func (f *FourslashTest) VerifyBaselineClosingTags(t *testing.T) {
 			VSCh:       ">",
 		}
 
-		result := sendRequest(t, f, lsproto.TextDocument_vs_onAutoInsertInfo, params)
+		result := sendRequest(t, f, lsproto.TextDocumentVSOnAutoInsertInfo, params)
 		return markerAndItem[*lsproto.VsOnAutoInsertResponseItem]{Marker: marker, Item: result.VsOnAutoInsertResponseItem}, true
 	})
 
 	getRange := func(item *lsproto.VsOnAutoInsertResponseItem) *lsproto.Range {
-		if item != nil && item.VSTextEdit != nil {
-			return &item.VSTextEdit.Range
-		}
+		// Returning nil lets annotateContentWithTooltips render the caret marker at
+		// the marker position. The text edit's range is zero-width at the cursor,
+		// which would render as an empty underline.
 		return nil
 	}
 

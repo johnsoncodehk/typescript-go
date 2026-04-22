@@ -118,18 +118,21 @@ class AutoInsert {
         // apply the snippet/edit at every cursor.
         const cursors = activeEditor.selections.map(s => s.active);
         const insertionRanges = cursors.some(p => p.isEqual(position)) ? cursors : edit.range;
+        // Swallow rejections from the editor (e.g., document changed under us). These
+        // return Thenables that can otherwise become unhandled rejections.
+        const swallow = () => undefined;
         if (response._vs_textEditFormat === InsertTextFormat.Snippet) {
-            activeEditor.insertSnippet(new vscode.SnippetString(edit.newText), insertionRanges);
+            void Promise.resolve(activeEditor.insertSnippet(new vscode.SnippetString(edit.newText), insertionRanges)).then(swallow, swallow);
         }
         else {
-            activeEditor.edit(b => {
+            void Promise.resolve(activeEditor.edit(b => {
                 if (Array.isArray(insertionRanges)) {
                     for (const p of insertionRanges) b.insert(p, edit.newText);
                 }
                 else {
                     b.replace(insertionRanges, edit.newText);
                 }
-            });
+            })).then(swallow, swallow);
         }
     }
 }

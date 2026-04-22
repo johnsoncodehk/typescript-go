@@ -30937,7 +30937,7 @@ func unmarshalParams(method Method, data []byte) (any, error) {
 		return unmarshalPtrTo[TextDocumentPositionParams](data)
 	case MethodCustomTextDocumentMultiDocumentHighlight:
 		return unmarshalPtrTo[MultiDocumentHighlightParams](data)
-	case MethodTextDocument_vs_onAutoInsert:
+	case MethodTextDocumentVSOnAutoInsert:
 		return unmarshalPtrTo[VsOnAutoInsertParams](data)
 	case MethodWorkspaceDidChangeWorkspaceFolders:
 		return unmarshalPtrTo[DidChangeWorkspaceFoldersParams](data)
@@ -31146,7 +31146,7 @@ func unmarshalResult(method Method, data []byte) (any, error) {
 		return unmarshalValue[CustomTextDocumentSourceDefinitionResponse](data)
 	case MethodCustomTextDocumentMultiDocumentHighlight:
 		return unmarshalValue[CustomMultiDocumentHighlightResponse](data)
-	case MethodTextDocument_vs_onAutoInsert:
+	case MethodTextDocumentVSOnAutoInsert:
 		return unmarshalValue[VsOnAutoInsertResponse](data)
 	default:
 		return unmarshalAny(data)
@@ -31471,7 +31471,7 @@ const (
 	// Request to get document highlights across multiple files.
 	MethodCustomTextDocumentMultiDocumentHighlight Method = "custom/textDocument/multiDocumentHighlight"
 	// Request for auto-insert when a trigger character is typed (VS-specific).
-	MethodTextDocument_vs_onAutoInsert Method = "textDocument/_vs_onAutoInsert"
+	MethodTextDocumentVSOnAutoInsert Method = "textDocument/_vs_onAutoInsert"
 	// The `workspace/didChangeWorkspaceFolders` notification is sent from the client to the server when the workspace
 	// folder configuration changes.
 	MethodWorkspaceDidChangeWorkspaceFolders Method = "workspace/didChangeWorkspaceFolders"
@@ -32027,7 +32027,7 @@ var CustomTextDocumentMultiDocumentHighlightInfo = RequestInfo[*MultiDocumentHig
 type VsOnAutoInsertResponse = VsOnAutoInsertResponseItemOrNull
 
 // Type mapping info for `textDocument/_vs_onAutoInsert`
-var TextDocument_vs_onAutoInsertInfo = RequestInfo[*VsOnAutoInsertParams, VsOnAutoInsertResponse]{Method: MethodTextDocument_vs_onAutoInsert}
+var TextDocumentVSOnAutoInsertInfo = RequestInfo[*VsOnAutoInsertParams, VsOnAutoInsertResponse]{Method: MethodTextDocumentVSOnAutoInsert}
 
 // Type mapping info for `workspace/didChangeWorkspaceFolders`
 var WorkspaceDidChangeWorkspaceFoldersInfo = NotificationInfo[*DidChangeWorkspaceFoldersParams]{Method: MethodWorkspaceDidChangeWorkspaceFolders}

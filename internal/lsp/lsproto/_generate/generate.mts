@@ -1496,7 +1496,12 @@ function formatDocumentation(s: string | undefined): string {
 }
 
 function methodNameIdentifier(name: string) {
-    return name.split("/").map(v => v === "$" ? "" : titleCase(v)).join("");
+    return name.split("/").map(v => {
+        if (v === "$") return "";
+        // Mirror goFieldName: "_vs_foo" -> "VSFoo".
+        if (v.startsWith("_vs_")) return "VS" + titleCase(v.slice(4));
+        return titleCase(v);
+    }).join("");
 }
 
 /**

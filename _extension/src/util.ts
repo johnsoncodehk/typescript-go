@@ -173,6 +173,12 @@ function getExplicitUseTsgo(section: string): boolean | undefined {
  * the unified `js/ts.<key>` setting wins if explicitly set at any scope, otherwise
  * the per-language `<fallbackSection>.<fallbackKey>` setting is used (including its
  * declared default).
+ *
+ * Note: we intentionally ignore the unified setting's registered default
+ * (`defaultValue`/`defaultLanguageValue` from `inspect()`) so that the per-language
+ * fallback's value/default can apply when the user hasn't explicitly set the
+ * unified key. Both keys typically declare the same default, so this is observably
+ * equivalent in the unset case.
  */
 export function readUnifiedConfig<T>(
     key: string,
