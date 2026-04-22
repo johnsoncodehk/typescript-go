@@ -90,7 +90,7 @@ func (l *LanguageService) ProvideOnAutoInsert(ctx context.Context, params *lspro
 			VSTextEditFormat: lsproto.InsertTextFormatSnippet,
 			VSTextEdit: &lsproto.TextEdit{
 				Range:   lsproto.Range{Start: params.VSPosition, End: params.VSPosition},
-				NewText: "$0" + closingText,
+				NewText: "$0" + escapeSnippetText(closingText),
 			},
 		},
 	}, nil
