@@ -9,15 +9,20 @@ import (
 	"github.com/microsoft/typescript-go/internal/scanner"
 )
 
-func (l *LanguageService) computeClosingTagText(uri lsproto.DocumentUri, lspPosition lsproto.Position) string {
-	_, sourceFile := l.getProgramAndFile(uri)
-	position := l.converters.LineAndCharacterToPosition(sourceFile, lspPosition)
+func (l *LanguageService) ProvideOnAutoInsert(ctx context.Context, params *lsproto.VsOnAutoInsertParams) (lsproto.VsOnAutoInsertResponse, error) {
+	if params.VSCh != ">" {
+		return lsproto.VsOnAutoInsertResponse{}, nil
+	}
+
+	_, sourceFile := l.getProgramAndFile(params.VSTextDocument.Uri)
+	position := l.converters.LineAndCharacterToPosition(sourceFile, params.VSPosition)
 
 	token := astnav.FindPrecedingToken(sourceFile, int(position))
 	if token == nil {
-		return ""
+		return lsproto.VsOnAutoInsertResponse{}, nil
 	}
 
+	var closingText string
 	var element *ast.Node
 	if token.Kind == ast.KindGreaterThanToken && ast.IsJsxOpeningElement(token.Parent) {
 		element = token.Parent.Parent
@@ -28,21 +33,36 @@ func (l *LanguageService) computeClosingTagText(uri lsproto.DocumentUri, lspPosi
 	if element != nil && isUnclosedTag(element.AsJsxElement()) {
 		tagNameNode := element.AsJsxElement().OpeningElement.TagName()
 		// Slight divergence from Strada - we don't use the verbatim text from the opening tag.
-		return "</" + ast.EntityNameToString(tagNameNode, scanner.GetTextOfNode) + ">"
+		closingText = "</" + ast.EntityNameToString(tagNameNode, scanner.GetTextOfNode) + ">"
+	} else {
+		var fragment *ast.Node
+		if token.Kind == ast.KindGreaterThanToken && ast.IsJsxOpeningFragment(token.Parent) {
+			fragment = token.Parent.Parent
+		} else if ast.IsJsxText(token) && ast.IsJsxFragment(token.Parent) {
+			fragment = token.Parent
+		}
+
+		if fragment != nil && isUnclosedFragment(fragment.AsJsxFragment()) {
+			closingText = "</>"
+		}
 	}
 
-	var fragment *ast.Node
-	if token.Kind == ast.KindGreaterThanToken && ast.IsJsxOpeningFragment(token.Parent) {
-		fragment = token.Parent.Parent
-	} else if ast.IsJsxText(token) && ast.IsJsxFragment(token.Parent) {
-		fragment = token.Parent
+	if closingText == "" {
+		return lsproto.VsOnAutoInsertResponse{}, nil
 	}
 
-	if fragment != nil && isUnclosedFragment(fragment.AsJsxFragment()) {
-		return "</>"
-	}
-
-	return ""
+	return lsproto.VsOnAutoInsertResponse{
+		VsOnAutoInsertResponseItem: &lsproto.VsOnAutoInsertResponseItem{
+			VSTextEditFormat: lsproto.InsertTextFormatSnippet,
+			VSTextEdit: &lsproto.TextEdit{
+				Range: lsproto.Range{Start: params.VSPosition, End: params.VSPosition},
+				// Tag names can contain `$` (valid JSX identifier characters), so
+				// escape the closing text to avoid being interpreted as a snippet
+				// placeholder/variable.
+				NewText: "$0" + escapeSnippetText(closingText),
+			},
+		},
+	}, nil
 }
 
 func isUnclosedTag(node *ast.JsxElement) bool {
@@ -73,25 +93,4 @@ func isUnclosedFragment(node *ast.JsxFragment) bool {
 	}
 
 	return false
-}
-
-func (l *LanguageService) ProvideOnAutoInsert(ctx context.Context, params *lsproto.VsOnAutoInsertParams) (lsproto.VsOnAutoInsertResponse, error) {
-	if params.VSCh != ">" {
-		return lsproto.VsOnAutoInsertResponse{}, nil
-	}
-
-	closingText := l.computeClosingTagText(params.VSTextDocument.Uri, params.VSPosition)
-	if closingText == "" {
-		return lsproto.VsOnAutoInsertResponse{}, nil
-	}
-
-	return lsproto.VsOnAutoInsertResponse{
-		VsOnAutoInsertResponseItem: &lsproto.VsOnAutoInsertResponseItem{
-			VSTextEditFormat: lsproto.InsertTextFormatSnippet,
-			VSTextEdit: &lsproto.TextEdit{
-				Range:   lsproto.Range{Start: params.VSPosition, End: params.VSPosition},
-				NewText: "$0" + escapeSnippetText(closingText),
-			},
-		},
-	}, nil
 }
