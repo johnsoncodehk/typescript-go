@@ -167,29 +167,6 @@ const customStructures: Structure[] = [
         ],
     },
     {
-        name: "CustomClosingTagCompletion",
-        properties: [
-            {
-                name: "newText",
-                type: { kind: "base", name: "string" },
-                documentation: "The text to insert at the closing tag position.",
-            },
-            {
-                name: "_vs_textEdit",
-                type: { kind: "reference", name: "TextEdit" },
-                optional: true,
-                documentation: "The text edit to apply for the closing tag insertion (VS format). Only set when the client is VS.",
-            },
-            {
-                name: "_vs_textEditFormat",
-                type: { kind: "reference", name: "InsertTextFormat" },
-                optional: true,
-                documentation: "The format of the text edit (plaintext or snippet) (VS format). Only set when the client is VS.",
-            },
-        ],
-        documentation: "CustomClosingTagCompletion is the response for the custom/textDocument/closingTagCompletion request.",
-    },
-    {
         name: "VsOnAutoInsertOptions",
         properties: [
             {
@@ -541,20 +518,6 @@ const customEnumerations: Enumeration[] = [
 
 // Custom requests to add to the model (tsgo-specific)
 const customRequests: Request[] = [
-    {
-        method: "custom/textDocument/closingTagCompletion",
-        typeName: "CustomClosingTagCompletionRequest",
-        params: { kind: "reference", name: "TextDocumentPositionParams" },
-        result: {
-            kind: "or",
-            items: [
-                { kind: "reference", name: "CustomClosingTagCompletion" },
-                { kind: "base", name: "null" },
-            ],
-        },
-        messageDirection: "clientToServer",
-        documentation: "Request to get the closing tag completion at a given position.",
-    },
     {
         method: "custom/runGC",
         typeName: "RunGCRequest",

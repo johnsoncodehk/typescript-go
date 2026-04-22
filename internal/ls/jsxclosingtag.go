@@ -9,13 +9,13 @@ import (
 	"github.com/microsoft/typescript-go/internal/scanner"
 )
 
-func (l *LanguageService) ProvideClosingTagCompletion(ctx context.Context, params *lsproto.TextDocumentPositionParams) (lsproto.CustomClosingTagCompletionResponse, error) {
-	_, sourceFile := l.getProgramAndFile(params.TextDocument.Uri)
-	position := l.converters.LineAndCharacterToPosition(sourceFile, params.Position)
+func (l *LanguageService) computeClosingTagText(uri lsproto.DocumentUri, lspPosition lsproto.Position) string {
+	_, sourceFile := l.getProgramAndFile(uri)
+	position := l.converters.LineAndCharacterToPosition(sourceFile, lspPosition)
 
 	token := astnav.FindPrecedingToken(sourceFile, int(position))
 	if token == nil {
-		return lsproto.CustomClosingTagCompletionResponse{}, nil
+		return ""
 	}
 
 	var element *ast.Node
@@ -28,8 +28,7 @@ func (l *LanguageService) ProvideClosingTagCompletion(ctx context.Context, param
 	if element != nil && isUnclosedTag(element.AsJsxElement()) {
 		tagNameNode := element.AsJsxElement().OpeningElement.TagName()
 		// Slight divergence from Strada - we don't use the verbatim text from the opening tag.
-		closingText := "</" + ast.EntityNameToString(tagNameNode, scanner.GetTextOfNode) + ">"
-		return buildClosingTagResponse(ctx, params.Position, closingText), nil
+		return "</" + ast.EntityNameToString(tagNameNode, scanner.GetTextOfNode) + ">"
 	}
 
 	var fragment *ast.Node
@@ -40,25 +39,10 @@ func (l *LanguageService) ProvideClosingTagCompletion(ctx context.Context, param
 	}
 
 	if fragment != nil && isUnclosedFragment(fragment.AsJsxFragment()) {
-		return buildClosingTagResponse(ctx, params.Position, "</>"), nil
+		return "</>"
 	}
 
-	return lsproto.CustomClosingTagCompletionResponse{}, nil
-}
-
-func buildClosingTagResponse(ctx context.Context, position lsproto.Position, closingText string) lsproto.CustomClosingTagCompletionResponse {
-	result := lsproto.CustomClosingTagCompletion{
-		NewText: closingText,
-	}
-	if lsproto.GetClientCapabilities(ctx).VSSupportsVisualStudioExtensions {
-		snippetFormat := lsproto.InsertTextFormatSnippet
-		result.VSTextEdit = &lsproto.TextEdit{
-			Range:   lsproto.Range{Start: position, End: position},
-			NewText: "$0" + closingText,
-		}
-		result.VSTextEditFormat = &snippetFormat
-	}
-	return lsproto.CustomClosingTagCompletionResponse{CustomClosingTagCompletion: &result}
+	return ""
 }
 
 func isUnclosedTag(node *ast.JsxElement) bool {
@@ -96,22 +80,18 @@ func (l *LanguageService) ProvideOnAutoInsert(ctx context.Context, params *lspro
 		return lsproto.VsOnAutoInsertResponse{}, nil
 	}
 
-	closingTag, err := l.ProvideClosingTagCompletion(ctx, &lsproto.TextDocumentPositionParams{
-		TextDocument: params.VSTextDocument,
-		Position:     params.VSPosition,
-	})
-	if err != nil {
-		return lsproto.VsOnAutoInsertResponse{}, err
+	closingText := l.computeClosingTagText(params.VSTextDocument.Uri, params.VSPosition)
+	if closingText == "" {
+		return lsproto.VsOnAutoInsertResponse{}, nil
 	}
 
-	if closingTag.CustomClosingTagCompletion != nil && closingTag.CustomClosingTagCompletion.VSTextEdit != nil {
-		return lsproto.VsOnAutoInsertResponse{
-			VsOnAutoInsertResponseItem: &lsproto.VsOnAutoInsertResponseItem{
-				VSTextEditFormat: *closingTag.CustomClosingTagCompletion.VSTextEditFormat,
-				VSTextEdit:       closingTag.CustomClosingTagCompletion.VSTextEdit,
+	return lsproto.VsOnAutoInsertResponse{
+		VsOnAutoInsertResponseItem: &lsproto.VsOnAutoInsertResponseItem{
+			VSTextEditFormat: lsproto.InsertTextFormatSnippet,
+			VSTextEdit: &lsproto.TextEdit{
+				Range:   lsproto.Range{Start: params.VSPosition, End: params.VSPosition},
+				NewText: "$0" + closingText,
 			},
-		}, nil
-	}
-
-	return lsproto.VsOnAutoInsertResponse{}, nil
+		},
+	}, nil
 }

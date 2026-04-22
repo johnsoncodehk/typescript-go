@@ -28386,81 +28386,6 @@ func (s *CodeLensData) UnmarshalJSONFrom(dec *json.Decoder) error {
 	return nil
 }
 
-// CustomClosingTagCompletion is the response for the custom/textDocument/closingTagCompletion request.
-type CustomClosingTagCompletion struct {
-	// The text to insert at the closing tag position.
-	NewText string `json:"newText"`
-
-	// The text edit to apply for the closing tag insertion (VS format). Only set when the client is VS.
-	VSTextEdit *TextEdit `json:"_vs_textEdit,omitzero"`
-
-	// The format of the text edit (plaintext or snippet) (VS format). Only set when the client is VS.
-	VSTextEditFormat *InsertTextFormat `json:"_vs_textEditFormat,omitzero"`
-}
-
-var _ json.UnmarshalerFrom = (*CustomClosingTagCompletion)(nil)
-
-func (s *CustomClosingTagCompletion) UnmarshalJSONFrom(dec *json.Decoder) error {
-	const (
-		missingNewText uint = 1 << iota
-		_missingLast
-	)
-	missing := _missingLast - 1
-
-	if k := dec.PeekKind(); k != '{' {
-		return errNotObject(k)
-	}
-	if _, err := dec.ReadToken(); err != nil {
-		return err
-	}
-
-	for dec.PeekKind() != '}' {
-		name, err := dec.ReadValue()
-		if err != nil {
-			return err
-		}
-		switch string(name) {
-		case `"newText"`:
-			missing &^= missingNewText
-			if err := json.UnmarshalDecode(dec, &s.NewText); err != nil {
-				return err
-			}
-		case `"_vs_textEdit"`:
-			if dec.PeekKind() == 'n' {
-				return errNull("_vs_textEdit")
-			}
-			if err := json.UnmarshalDecode(dec, &s.VSTextEdit); err != nil {
-				return err
-			}
-		case `"_vs_textEditFormat"`:
-			if dec.PeekKind() == 'n' {
-				return errNull("_vs_textEditFormat")
-			}
-			if err := json.UnmarshalDecode(dec, &s.VSTextEditFormat); err != nil {
-				return err
-			}
-		default:
-			if err := dec.SkipValue(); err != nil {
-				return err
-			}
-		}
-	}
-
-	if _, err := dec.ReadToken(); err != nil {
-		return err
-	}
-
-	if missing != 0 {
-		var missingProps []string
-		if missing&missingNewText != 0 {
-			missingProps = append(missingProps, "newText")
-		}
-		return errMissing(missingProps)
-	}
-
-	return nil
-}
-
 // Options for the textDocument/_vs_onAutoInsert provider capability.
 type VsOnAutoInsertOptions struct {
 	// List of trigger characters that trigger auto-insert.
@@ -30994,8 +30919,6 @@ func unmarshalParams(method Method, data []byte) (any, error) {
 		return unmarshalPtrTo[ExecuteCommandParams](data)
 	case MethodWorkspaceApplyEdit:
 		return unmarshalPtrTo[ApplyWorkspaceEditParams](data)
-	case MethodCustomTextDocumentClosingTagCompletion:
-		return unmarshalPtrTo[TextDocumentPositionParams](data)
 	case MethodCustomRunGC:
 		return unmarshalEmpty(data)
 	case MethodCustomSaveHeapProfile:
@@ -31205,8 +31128,6 @@ func unmarshalResult(method Method, data []byte) (any, error) {
 		return unmarshalValue[ExecuteCommandResponse](data)
 	case MethodWorkspaceApplyEdit:
 		return unmarshalValue[ApplyWorkspaceEditResponse](data)
-	case MethodCustomTextDocumentClosingTagCompletion:
-		return unmarshalValue[CustomClosingTagCompletionResponse](data)
 	case MethodCustomRunGC:
 		return unmarshalValue[RunGCResponse](data)
 	case MethodCustomSaveHeapProfile:
@@ -31531,8 +31452,6 @@ const (
 	MethodWorkspaceExecuteCommand Method = "workspace/executeCommand"
 	// A request sent from the server to the client to modified certain resources.
 	MethodWorkspaceApplyEdit Method = "workspace/applyEdit"
-	// Request to get the closing tag completion at a given position.
-	MethodCustomTextDocumentClosingTagCompletion Method = "custom/textDocument/closingTagCompletion"
 	// Triggers garbage collection in the language server.
 	MethodCustomRunGC Method = "custom/runGC"
 	// Saves a heap profile to the specified directory.
@@ -32049,12 +31968,6 @@ type ApplyWorkspaceEditResponse = *ApplyWorkspaceEditResult
 
 // Type mapping info for `workspace/applyEdit`
 var WorkspaceApplyEditInfo = RequestInfo[*ApplyWorkspaceEditParams, ApplyWorkspaceEditResponse]{Method: MethodWorkspaceApplyEdit}
-
-// Response type for `custom/textDocument/closingTagCompletion`
-type CustomClosingTagCompletionResponse = CustomClosingTagCompletionOrNull
-
-// Type mapping info for `custom/textDocument/closingTagCompletion`
-var CustomTextDocumentClosingTagCompletionInfo = RequestInfo[*TextDocumentPositionParams, CustomClosingTagCompletionResponse]{Method: MethodCustomTextDocumentClosingTagCompletion}
 
 // Response type for `custom/runGC`
 type RunGCResponse = Null
@@ -35595,36 +35508,6 @@ func (o *LSPAnyOrNull) UnmarshalJSONFrom(dec *json.Decoder) error {
 		return nil
 	}
 	return errInvalidValue("LSPAnyOrNull", data)
-}
-
-type CustomClosingTagCompletionOrNull struct {
-	CustomClosingTagCompletion *CustomClosingTagCompletion
-}
-
-var _ json.MarshalerTo = (*CustomClosingTagCompletionOrNull)(nil)
-
-func (o *CustomClosingTagCompletionOrNull) MarshalJSONTo(enc *json.Encoder) error {
-	if o.CustomClosingTagCompletion != nil {
-		return json.MarshalEncode(enc, o.CustomClosingTagCompletion)
-	}
-	return enc.WriteToken(json.Null)
-}
-
-var _ json.UnmarshalerFrom = (*CustomClosingTagCompletionOrNull)(nil)
-
-func (o *CustomClosingTagCompletionOrNull) UnmarshalJSONFrom(dec *json.Decoder) error {
-	*o = CustomClosingTagCompletionOrNull{}
-
-	switch dec.PeekKind() {
-	case 'n':
-		_, err := dec.ReadToken()
-		return err
-	case '{':
-		o.CustomClosingTagCompletion = new(CustomClosingTagCompletion)
-		return json.UnmarshalDecode(dec, o.CustomClosingTagCompletion)
-	default:
-		return errInvalidKind("CustomClosingTagCompletionOrNull", dec.PeekKind())
-	}
 }
 
 type MultiDocumentHighlightsOrNull struct {

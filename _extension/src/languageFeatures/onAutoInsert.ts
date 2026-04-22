@@ -1,24 +1,47 @@
 import * as vscode from "vscode";
 import {
+    InsertTextFormat,
     LanguageClient,
-    TextDocumentPositionParams,
+    Position,
+    TextEdit,
 } from "vscode-languageclient/node";
 import {
     Condition,
     conditionalRegistration,
 } from "./util/dependentRegistration";
 
-const CLOSING_TAG_COMPLETION_DELAY = 100;
+const AUTO_INSERT_DELAY = 100;
 
-class TagClosing {
+interface VsOnAutoInsertParams {
+    _vs_textDocument: { uri: string; };
+    _vs_position: Position;
+    _vs_ch: string;
+}
+
+interface VsOnAutoInsertResponse {
+    _vs_textEditFormat: InsertTextFormat;
+    _vs_textEdit: TextEdit;
+}
+
+interface VsOnAutoInsertOptions {
+    _vs_triggerCharacters?: string[];
+}
+
+interface VsServerCapabilities {
+    _vs_onAutoInsertProvider?: VsOnAutoInsertOptions;
+}
+
+class AutoInsert {
     private disposed = false;
     private timeout: NodeJS.Timeout | undefined;
     private cancel: vscode.CancellationTokenSource | undefined;
     private onDidChangeSubscription: vscode.Disposable | undefined;
     private readonly client: LanguageClient;
+    private readonly triggerCharacters: ReadonlySet<string>;
 
-    constructor(client: LanguageClient) {
+    constructor(client: LanguageClient, triggerCharacters: readonly string[]) {
         this.client = client;
+        this.triggerCharacters = new Set(triggerCharacters);
         this.onDidChangeSubscription = vscode.workspace.onDidChangeTextDocument(
             this.onDidChangeTextDocument,
             this,
@@ -53,8 +76,6 @@ class TagClosing {
             return;
         }
 
-        // !!! toOpenTsFilePath?
-
         if (typeof this.timeout !== "undefined") {
             clearTimeout(this.timeout);
         }
@@ -67,18 +88,8 @@ class TagClosing {
 
         const lastChange = contentChanges[contentChanges.length - 1];
         const lastCharacter = lastChange.text.charAt(lastChange.text.length - 1);
-        if (lastChange.rangeLength > 0 || (lastCharacter !== ">" && lastCharacter !== "/")) {
+        if (lastChange.rangeLength > 0 || !this.triggerCharacters.has(lastCharacter)) {
             return;
-        }
-
-        if (lastChange.range.start.character > 0) {
-            const priorPosition = lastChange.range.start.translate(0, -1);
-            const textRange = new vscode.Range(priorPosition, lastChange.range.start);
-            const priorCharacter = document.getText(textRange);
-
-            if (priorCharacter === ">") {
-                return;
-            }
         }
 
         const startingVersion = document.version;
@@ -97,30 +108,27 @@ class TagClosing {
                     addedLines[addedLines.length - 1].length,
                 );
 
-            const params: TextDocumentPositionParams = {
-                textDocument: { uri: document.uri.toString() },
-                position: { line: position.line, character: position.character },
+            const params: VsOnAutoInsertParams = {
+                _vs_textDocument: this.client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+                _vs_position: this.client.code2ProtocolConverter.asPosition(position),
+                _vs_ch: lastCharacter,
             };
             this.cancel = new vscode.CancellationTokenSource();
 
-            let response;
+            let response: VsOnAutoInsertResponse | null;
             try {
-                response = await this.client.sendRequest<{ newText: string; } | null>(
-                    "custom/textDocument/closingTagCompletion",
+                response = await this.client.sendRequest<VsOnAutoInsertResponse | null>(
+                    "textDocument/_vs_onAutoInsert",
                     params,
                     this.cancel.token,
                 );
             }
             catch (e) {
-                console.error("Error requesting closing tag completion:", e);
+                console.error("Error requesting auto-insert:", e);
                 return;
             }
 
-            if (!response) {
-                return;
-            }
-
-            if (this.disposed) {
+            if (!response || this.disposed) {
                 return;
             }
 
@@ -130,20 +138,18 @@ class TagClosing {
             }
 
             const activeDocument = activeEditor.document;
-            if (document === activeDocument && activeDocument.version === startingVersion) {
-                const snippet = new vscode.SnippetString();
-                snippet.appendPlaceholder("", 0);
-                snippet.appendText(response.newText);
-
-                const activeSelectionsPositions = activeEditor.selections.map(sel => sel.active);
-                // TODO: why was this not a `filter` or `find`?
-                const insertionPositions = activeSelectionsPositions.some(p => p.isEqual(position))
-                    ? activeSelectionsPositions
-                    : position;
-
-                activeEditor.insertSnippet(snippet, insertionPositions);
+            if (document !== activeDocument || activeDocument.version !== startingVersion) {
+                return;
             }
-        }, CLOSING_TAG_COMPLETION_DELAY);
+
+            const edit = this.client.protocol2CodeConverter.asTextEdit(response._vs_textEdit);
+            if (response._vs_textEditFormat === InsertTextFormat.Snippet) {
+                activeEditor.insertSnippet(new vscode.SnippetString(edit.newText), edit.range);
+            }
+            else {
+                activeEditor.edit(editBuilder => editBuilder.replace(edit.range, edit.newText));
+            }
+        }, AUTO_INSERT_DELAY);
     }
 }
 
@@ -173,12 +179,17 @@ function requireActiveDocumentSetting(languageConfigSection: "typescript" | "jav
     );
 }
 
-export function registerTagClosingFeature(
+export function registerOnAutoInsertFeature(
     languageConfigSection: "typescript" | "javascript",
     selector: vscode.DocumentSelector,
     client: LanguageClient,
 ): vscode.Disposable {
+    const capabilities = client.initializeResult?.capabilities as VsServerCapabilities | undefined;
+    const triggerCharacters = capabilities?._vs_onAutoInsertProvider?._vs_triggerCharacters;
+    if (!triggerCharacters || triggerCharacters.length === 0) {
+        return vscode.Disposable.from();
+    }
     return conditionalRegistration([
         requireActiveDocumentSetting(languageConfigSection, selector),
-    ], () => new TagClosing(client));
+    ], () => new AutoInsert(client, triggerCharacters));
 }
