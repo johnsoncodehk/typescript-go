@@ -612,7 +612,8 @@ func isOptionalInitializedOrRestParameter(node *ast.ParameterDeclarationNode) bo
 // lastRequiredParamIndex returns the index just past the last required parameter
 // in the list. A parameter is "required" if it has no question token, no initializer,
 // and no rest token. This is computed in a single reverse pass so callers can
-// determine "has required parameter after index i" with `i < lastRequired` in O(1).
+// determine "has required parameter after index i" with `i+1 < lastRequired`
+// (equivalently, `i < lastRequired-1`) in O(1).
 func lastRequiredParamIndex(params []*ast.Node) int {
 	for i := len(params) - 1; i >= 0; i-- {
 		if !isOptionalInitializedOrRestParameter(params[i]) {
@@ -638,6 +639,13 @@ func (ch *PseudoChecker) typeFromParameter(node *ast.ParameterDeclaration) *Pseu
 	parent := node.Parent
 	if parent.Kind == ast.KindSetAccessor {
 		return ch.GetTypeOfAccessor(parent)
+	}
+	// Fast path: no initializer means we never need parameter position info.
+	if node.Initializer == nil {
+		if node.Type != nil {
+			return NewPseudoTypeDirect(node.Type)
+		}
+		return NewPseudoTypeNoResult(node.AsNode())
 	}
 	p := parent.Parameters()
 	selfIdx := slices.Index(p, node.AsNode())
