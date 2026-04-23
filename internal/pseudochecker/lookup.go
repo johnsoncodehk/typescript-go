@@ -574,7 +574,9 @@ func typeNodeCouldReferToUndefined(node *ast.Node) bool {
 		return true
 	case ast.KindTypePredicate: // suspect - always refers to `never` or `boolean`, depending on kind - considered possibly-`undefined` referencing for strada compat
 		return true
-	default: // all keywords (why is `undefined` not excluded???), literal types, function-y types, array/tuple types, type literals, template types, this types
+	case ast.KindUndefinedKeyword:
+		return true
+	default: // all other keywords, literal types, function-y types, array/tuple types, type literals, template types, this types
 		return false
 	}
 }
@@ -626,7 +628,21 @@ func (ch *PseudoChecker) typeFromParameter(node *ast.ParameterDeclaration) *Pseu
 	}
 	declaredType := node.Type
 	if declaredType != nil {
-		return NewPseudoTypeDirect(declaredType)
+		result := NewPseudoTypeDirect(declaredType)
+		// When the parameter has an initializer and strict null checks are enabled,
+		// check if `| undefined` needs to be added because there are required parameters after this one.
+		// This mirrors the checker's getTypeOfParameter which adds optionality for initialized parameters.
+		if ch.strictNullChecks && node.Initializer != nil {
+			p := node.Parent.Parameters()
+			selfIdx := slices.Index(p, node.AsNode())
+			if selfIdx < len(p)-1 {
+				remainingParams := p[selfIdx+1:]
+				if !core.Every(remainingParams, isOptionalInitializedOrRestParameter) {
+					return addUndefinedIfDefinitelyRequired(result)
+				}
+			}
+		}
+		return result
 	}
 	if node.Initializer != nil && ast.IsIdentifier(node.Name()) && !isContextuallyTyped(node.AsNode()) {
 		expr := ch.typeFromExpression(node.Initializer)
@@ -660,12 +676,21 @@ func (ch *PseudoChecker) cloneParameters(nodes *ast.NodeList) []*PseudoParameter
 		return nil
 	}
 	result := make([]*PseudoParameter, 0, len(nodes.Nodes))
-	for _, e := range nodes.Nodes {
+	for i, e := range nodes.Nodes {
+		p := e.AsParameterDeclaration()
+		optional := p.QuestionToken != nil
+		if !optional && p.Initializer != nil {
+			// A parameter with an initializer is optional only if all subsequent
+			// parameters are also optional/have initializers/are rest parameters.
+			// This matches the checker's isOptionalParameter semantics.
+			remainingParams := nodes.Nodes[i+1:]
+			optional = core.Every(remainingParams, isOptionalInitializedOrRestParameter)
+		}
 		result = append(result, NewPseudoParameter(
-			e.AsParameterDeclaration().DotDotDotToken != nil,
+			p.DotDotDotToken != nil,
 			e.Name(),
-			e.AsParameterDeclaration().QuestionToken != nil || e.AsParameterDeclaration().Initializer != nil,
-			ch.typeFromParameter(e.AsParameterDeclaration()),
+			optional,
+			ch.typeFromParameter(p),
 		))
 	}
 	return result
