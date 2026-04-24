@@ -94,7 +94,7 @@ func (tx *CommonJSModuleTransformer) visitTopLevelNested(node *ast.Node) *ast.No
 func (tx *CommonJSModuleTransformer) visitTopLevelNestedNoStack(node *ast.Node) *ast.Node {
 	switch node.Kind {
 	case ast.KindVariableStatement:
-		node = tx.visitTopLevelNestedVariableStatement(node.AsVariableStatement())
+		node = tx.visitTopLevelVariableStatement(node.AsVariableStatement())
 	case ast.KindForStatement:
 		node = tx.visitTopLevelNestedForStatement(node.AsForStatement())
 	case ast.KindForInStatement, ast.KindForOfStatement:
@@ -1098,6 +1098,9 @@ func (tx *CommonJSModuleTransformer) visitTopLevelVariableStatement(node *ast.Va
 		commitPendingVariables()
 		commitPendingExpressions()
 		statements = tx.appendExportsOfVariableStatement(statements, node)
+		if len(statements) == 0 {
+			return nil
+		}
 		return transformers.SingleOrMany(statements, tx.Factory())
 	}
 	return tx.visitTopLevelNestedVariableStatement(node)
@@ -1243,11 +1246,19 @@ func (tx *CommonJSModuleTransformer) visitTopLevelNestedWhileStatement(node *ast
 // Visits a top-level nested labeled statement as it may contain `var` declarations that are hoisted and may still be
 // exported with `export {}`.
 func (tx *CommonJSModuleTransformer) visitTopLevelNestedLabeledStatement(node *ast.LabeledStatement) *ast.Node {
-	return tx.Factory().UpdateLabeledStatement(
-		node,
-		node.Label,
-		tx.topLevelNestedVisitor.VisitEmbeddedStatement(node.Statement),
-	)
+	visited := tx.topLevelNestedVisitor.Visit(node.Statement)
+	if visited == nil {
+		visited = tx.Factory().NewEmptyStatement()
+		visited.Loc = node.Statement.Loc
+	} else if visited.Kind == ast.KindSyntaxList {
+		children := visited.AsSyntaxList().Children
+		if len(children) == 1 {
+			visited = children[0]
+		} else {
+			visited = tx.Factory().NewBlock(tx.Factory().NewNodeList(children), true /*multiLine*/)
+		}
+	}
+	return tx.Factory().UpdateLabeledStatement(node, node.Label, visited)
 }
 
 // Visits a top-level nested `with` statement as it may contain `var` declarations that are hoisted and may still be
