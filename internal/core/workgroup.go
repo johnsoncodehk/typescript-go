@@ -36,15 +36,6 @@ func NewThrottledWorkGroup(singleThreaded bool) WorkGroup {
 	}
 }
 
-// NewGOMAXPROCSSemaphore creates a Semaphore sized to GOMAXPROCS.
-// When singleThreaded is true, returns an UnlimitedSemaphore.
-func NewGOMAXPROCSSemaphore(singleThreaded bool) Semaphore {
-	if singleThreaded {
-		return UnlimitedSemaphore{}
-	}
-	return NewLimitedSemaphore(runtime.GOMAXPROCS(0))
-}
-
 type parallelWorkGroup struct {
 	done atomic.Bool
 	wg   sync.WaitGroup
