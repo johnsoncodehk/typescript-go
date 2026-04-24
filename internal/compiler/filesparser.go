@@ -102,13 +102,10 @@ func (t *parseTask) load(loader *fileLoader) {
 		// to avoid adding spurious lookups to file watcher tracking.
 		t.metadata = ast.SourceFileMetaData{ImpliedNodeFormat: core.ResolutionModeCommonJS}
 	} else {
-		// Resolution: load metadata (package.json lookups involve stat calls).
-		loader.filesParser.resolvePool.Run(func() {
-			t.metadata = loader.loadSourceFileMetaData(t.normalizedFilePath)
-		})
+		t.metadata = loader.loadSourceFileMetaData(t.normalizedFilePath)
 	}
 
-	// Parsing: parse the source file (CPU-heavy).
+	// Parse on a fixed-size pool to bound peak grown-stack memory; see GoroutinePool.
 	var file *ast.SourceFile
 	loader.filesParser.parsePool.Run(func() {
 		file = loader.parseSourceFile(t)
@@ -120,48 +117,45 @@ func (t *parseTask) load(loader *fileLoader) {
 	t.file = file
 	t.subTasks = make([]*parseTask, 0, len(file.ReferencedFiles)+len(file.Imports())+len(file.ModuleAugmentations))
 
-	// Resolution: resolve references, type directives, and imports (stat-heavy).
-	loader.filesParser.resolvePool.Run(func() {
-		compilerOptions := loader.opts.Config.CompilerOptions()
-		if !compilerOptions.NoResolve.IsTrue() {
-			for index, ref := range file.ReferencedFiles {
-				resolvedRef, processingDiagnostic := loader.resolveTripleslashPathReference(ref.FileName, file.FileName(), index)
-				if processingDiagnostic != nil {
-					t.processingDiagnostics = append(t.processingDiagnostics, processingDiagnostic)
-					continue
-				}
-				t.addSubTask(*resolvedRef, nil)
+	compilerOptions := loader.opts.Config.CompilerOptions()
+	if !compilerOptions.NoResolve.IsTrue() {
+		for index, ref := range file.ReferencedFiles {
+			resolvedRef, processingDiagnostic := loader.resolveTripleslashPathReference(ref.FileName, file.FileName(), index)
+			if processingDiagnostic != nil {
+				t.processingDiagnostics = append(t.processingDiagnostics, processingDiagnostic)
+				continue
 			}
-
-			loader.resolveTypeReferenceDirectives(t)
+			t.addSubTask(*resolvedRef, nil)
 		}
 
-		if compilerOptions.NoLib != core.TSTrue {
-			for index, lib := range file.LibReferenceDirectives {
-				includeReason := &FileIncludeReason{
-					kind: fileIncludeKindLibReferenceDirective,
-					data: &referencedFileData{
-						file:  t.path,
-						index: index,
-					},
-				}
-				if name, ok := tsoptions.GetLibFileName(lib.FileName); ok {
-					libFile := loader.pathForLibFile(name)
-					t.addSubTask(resolvedRef{
-						fileName:      libFile.path,
-						includeReason: includeReason,
-					}, libFile)
-				} else {
-					t.processingDiagnostics = append(t.processingDiagnostics, &processingDiagnostic{
-						kind: processingDiagnosticKindUnknownReference,
-						data: includeReason,
-					})
-				}
+		loader.resolveTypeReferenceDirectives(t)
+	}
+
+	if compilerOptions.NoLib != core.TSTrue {
+		for index, lib := range file.LibReferenceDirectives {
+			includeReason := &FileIncludeReason{
+				kind: fileIncludeKindLibReferenceDirective,
+				data: &referencedFileData{
+					file:  t.path,
+					index: index,
+				},
+			}
+			if name, ok := tsoptions.GetLibFileName(lib.FileName); ok {
+				libFile := loader.pathForLibFile(name)
+				t.addSubTask(resolvedRef{
+					fileName:      libFile.path,
+					includeReason: includeReason,
+				}, libFile)
+			} else {
+				t.processingDiagnostics = append(t.processingDiagnostics, &processingDiagnostic{
+					kind: processingDiagnosticKindUnknownReference,
+					data: includeReason,
+				})
 			}
 		}
+	}
 
-		loader.resolveImportsAndModuleAugmentations(t)
-	})
+	loader.resolveImportsAndModuleAugmentations(t)
 }
 
 func (t *parseTask) redirect(loader *fileLoader, fileName string) {
@@ -175,15 +169,13 @@ func (t *parseTask) redirect(loader *fileLoader, fileName string) {
 }
 
 func (t *parseTask) loadAutomaticTypeDirectives(loader *fileLoader) {
-	loader.filesParser.resolvePool.Run(func() {
-		toParseTypeRefs, typeResolutionsInFile, typeResolutionsTrace, pDiagnostics := loader.resolveAutomaticTypeDirectives(t.normalizedFilePath)
-		t.typeResolutionsInFile = typeResolutionsInFile
-		t.typeResolutionsTrace = typeResolutionsTrace
-		t.processingDiagnostics = append(t.processingDiagnostics, pDiagnostics...)
-		for _, typeResolution := range toParseTypeRefs {
-			t.addSubTask(typeResolution, nil)
-		}
-	})
+	toParseTypeRefs, typeResolutionsInFile, typeResolutionsTrace, pDiagnostics := loader.resolveAutomaticTypeDirectives(t.normalizedFilePath)
+	t.typeResolutionsInFile = typeResolutionsInFile
+	t.typeResolutionsTrace = typeResolutionsTrace
+	t.processingDiagnostics = append(t.processingDiagnostics, pDiagnostics...)
+	for _, typeResolution := range toParseTypeRefs {
+		t.addSubTask(typeResolution, nil)
+	}
 }
 
 type resolvedRef struct {
@@ -209,7 +201,6 @@ func (t *parseTask) addSubTask(ref resolvedRef, libFile *LibFile) {
 
 type filesParser struct {
 	wg             core.WorkGroup
-	resolvePool    core.GoroutinePool
 	parsePool      core.GoroutinePool
 	taskDataByPath collections.SyncMap[tspath.Path, *parseTaskData]
 	maxDepth       int
@@ -247,7 +238,6 @@ type parseTaskData struct {
 func (w *filesParser) parse(loader *fileLoader, tasks []*parseTask) {
 	w.start(loader, tasks, 0)
 	w.wg.RunAndWait()
-	w.resolvePool.Close()
 	w.parsePool.Close()
 }
 
