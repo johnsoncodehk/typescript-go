@@ -764,7 +764,6 @@ func CloneOrMakeMap[K comparable, V any](m map[K]V) map[K]V {
 	return maps.Clone(m)
 }
 
-
 // UnorderedEqual returns true if s1 and s2 contain the same elements, regardless of order.
 func UnorderedEqual[T comparable](s1 []T, s2 []T) bool {
 	if len(s1) != len(s2) {
