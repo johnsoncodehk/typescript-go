@@ -657,6 +657,10 @@ func (s *Server) handleRequestOrNotification(ctx context.Context, req *lsproto.R
 			idStr = " (" + req.ID.String() + ")"
 		}
 		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				runtimetrace.LogSafe(ctx, "error", string(req.Method))
+				runtimetrace.LogUnsafef(ctx, "error", "%v", err)
+			}
 			endTask()
 			if _, ok := errors.AsType[userFacingRequestFailedError](err); !ok {
 				s.logger.Error("error handling method '", req.Method, "'", idStr, ": ", err)
@@ -672,6 +676,10 @@ func (s *Server) handleRequestOrNotification(ctx context.Context, req *lsproto.R
 				asyncWorkErr := doAsyncWork()
 				_, isUserFacing := errors.AsType[userFacingRequestFailedError](asyncWorkErr)
 				isRealError := asyncWorkErr != nil && !isUserFacing
+				if asyncWorkErr != nil && !errors.Is(asyncWorkErr, context.Canceled) {
+					runtimetrace.LogSafe(ctx, "error", string(req.Method))
+					runtimetrace.LogUnsafef(ctx, "error", "%v", asyncWorkErr)
+				}
 				s.logger.Info(core.IfElse(isRealError, "error handling method '", "handled method '"), req.Method, "'", idStr, " in ", time.Since(start))
 				return asyncWorkErr
 			}, nil
