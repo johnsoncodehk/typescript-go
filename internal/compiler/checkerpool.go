@@ -8,6 +8,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/checker"
 	"github.com/microsoft/typescript-go/internal/core"
+	"github.com/microsoft/typescript-go/internal/runtimetrace"
 	"github.com/microsoft/typescript-go/internal/tracing"
 )
 
@@ -97,6 +98,10 @@ func (p *checkerPool) getCheckerNonExclusive() (*checker.Checker, func()) {
 
 func (p *checkerPool) createCheckers() {
 	p.createCheckersOnce.Do(func() {
+		defer runtimetrace.Region(context.TODO(), "compiler.createCheckers")()
+		if runtimetrace.IsEnabled() {
+			runtimetrace.LogSafef(context.TODO(), "checker", "count=%d", len(p.checkers))
+		}
 		checkerCount := len(p.checkers)
 		wg := core.NewWorkGroup(p.program.SingleThreaded())
 		for i := range checkerCount {

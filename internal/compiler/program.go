@@ -578,6 +578,7 @@ func (p *Program) collectCheckerDiagnosticsFromFiles(ctx context.Context, source
 }
 
 func (p *Program) GetSyntacticDiagnostics(ctx context.Context, sourceFile *ast.SourceFile) []*ast.Diagnostic {
+	defer runtimetrace.Region(ctx, "compiler.GetSyntacticDiagnostics")()
 	return p.collectDiagnostics(ctx, sourceFile, false /*concurrent*/, func(_ context.Context, file *ast.SourceFile) []*ast.Diagnostic {
 		diags := core.Concatenate(file.Diagnostics(), file.JSDiagnostics())
 		// For JS files that won't be checked by the checker (no checkJs/ts-check), we need
@@ -633,6 +634,7 @@ func (p *Program) GetBindDiagnostics(ctx context.Context, sourceFile *ast.Source
 }
 
 func (p *Program) GetSemanticDiagnostics(ctx context.Context, sourceFile *ast.SourceFile) []*ast.Diagnostic {
+	defer runtimetrace.Region(ctx, "compiler.GetSemanticDiagnostics")()
 	return p.collectCheckerDiagnostics(ctx, sourceFile, p.getSemanticDiagnosticsWithChecker)
 }
 
@@ -646,6 +648,7 @@ func (p *Program) GetSemanticDiagnosticsWithoutNoEmitFiltering(ctx context.Conte
 }
 
 func (p *Program) GetSuggestionDiagnostics(ctx context.Context, sourceFile *ast.SourceFile) []*ast.Diagnostic {
+	defer runtimetrace.Region(ctx, "compiler.GetSuggestionDiagnostics")()
 	return p.collectCheckerDiagnostics(ctx, sourceFile, p.getSuggestionDiagnosticsWithChecker)
 }
 
@@ -1281,6 +1284,7 @@ func (p *Program) GetGlobalDiagnostics(ctx context.Context) []*ast.Diagnostic {
 }
 
 func (p *Program) GetDeclarationDiagnostics(ctx context.Context, sourceFile *ast.SourceFile) []*ast.Diagnostic {
+	defer runtimetrace.Region(ctx, "compiler.GetDeclarationDiagnostics")()
 	return p.collectDiagnostics(ctx, sourceFile, true /*concurrent*/, p.getDeclarationDiagnosticsForFile)
 }
 
