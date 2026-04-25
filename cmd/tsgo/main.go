@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/microsoft/typescript-go/internal/execute"
+	"github.com/microsoft/typescript-go/internal/runtimetrace"
 )
 
 func main() {
@@ -11,6 +12,9 @@ func main() {
 }
 
 func runMain() int {
+	tracing := runtimetrace.Start(os.Stderr)
+	defer tracing.Stop()
+
 	args := os.Args[1:]
 	if len(args) > 0 {
 		switch args[0] {
