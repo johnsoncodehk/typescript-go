@@ -24,6 +24,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/packagejson"
 	"github.com/microsoft/typescript-go/internal/parser"
 	"github.com/microsoft/typescript-go/internal/printer"
+	"github.com/microsoft/typescript-go/internal/runtimetrace"
 	"github.com/microsoft/typescript-go/internal/scanner"
 	"github.com/microsoft/typescript-go/internal/sourcemap"
 	"github.com/microsoft/typescript-go/internal/symlinks"
@@ -266,6 +267,7 @@ func (p *Program) GetSourceFileFromReference(origin *ast.SourceFile, ref *ast.Fi
 }
 
 func NewProgram(opts ProgramOptions) *Program {
+	defer runtimetrace.Region(context.TODO(), "compiler.NewProgram")()
 	p := &Program{opts: opts}
 	if p.opts.Tracing != nil {
 		defer p.opts.Tracing.Push(tracing.PhaseProgram, "createProgram", map[string]any{"configFilePath": opts.Config.CompilerOptions().ConfigFilePath}, true)()
@@ -416,10 +418,12 @@ func (p *Program) SingleThreaded() bool {
 }
 
 func (p *Program) BindSourceFiles() {
+	defer runtimetrace.Region(context.TODO(), "compiler.BindSourceFiles")()
 	wg := core.NewWorkGroup(p.SingleThreaded())
 	for _, file := range p.files {
 		if !file.IsBound() {
 			wg.Queue(func() {
+				defer runtimetrace.Region(context.TODO(), "binder.BindSourceFile")()
 				if p.opts.Tracing != nil {
 					defer p.opts.Tracing.Push(tracing.PhaseBind, "bindSourceFile", map[string]any{"path": string(file.Path())}, true)()
 				}
@@ -1581,6 +1585,7 @@ type SourceMapEmitResult struct {
 }
 
 func (p *Program) Emit(ctx context.Context, options EmitOptions) *EmitResult {
+	defer runtimetrace.Region(ctx, "compiler.Emit")()
 	if tr := p.opts.Tracing; tr != nil {
 		defer tr.Push(tracing.PhaseEmit, "emit", nil, true)()
 	}
@@ -1627,7 +1632,7 @@ func (p *Program) Emit(ctx context.Context, options EmitOptions) *EmitResult {
 			// attach writer and perform emit
 			emitter.writer = writer
 			emitter.paths = outputpaths.GetOutputPathsFor(sourceFile, host.Options(), host, options.EmitOnly == EmitOnlyForcedDts)
-			emitter.emit()
+			emitter.emit(ctx)
 			emitter.writer = nil
 
 			// put the writer back in the pool

@@ -646,6 +646,7 @@ func (s *Server) handleRequestOrNotification(ctx context.Context, req *lsproto.R
 	ctx = lsproto.WithClientCapabilities(ctx, &s.clientCapabilities)
 
 	if handler := handlers()[req.Method]; handler != nil {
+		ctx, endTask := runtimetrace.NewTask(ctx, "lsp."+string(req.Method))
 		start := time.Now()
 		doAsyncWork, err := handler(s, ctx, req)
 		idStr := ""
@@ -653,6 +654,7 @@ func (s *Server) handleRequestOrNotification(ctx context.Context, req *lsproto.R
 			idStr = " (" + req.ID.String() + ")"
 		}
 		if err != nil {
+			endTask()
 			if _, ok := errors.AsType[userFacingRequestFailedError](err); !ok {
 				s.logger.Error("error handling method '", req.Method, "'", idStr, ": ", err)
 			} else {
@@ -662,6 +664,7 @@ func (s *Server) handleRequestOrNotification(ctx context.Context, req *lsproto.R
 		}
 		if doAsyncWork != nil {
 			return func() error {
+				defer endTask()
 				// note: ctx.Err() has to be checked in the async work to allow async handlers to cleanup resources correctly
 				asyncWorkErr := doAsyncWork()
 				_, isUserFacing := errors.AsType[userFacingRequestFailedError](asyncWorkErr)
@@ -670,6 +673,7 @@ func (s *Server) handleRequestOrNotification(ctx context.Context, req *lsproto.R
 				return asyncWorkErr
 			}, nil
 		}
+		endTask()
 		s.logger.Info("handled method '", req.Method, "'", idStr, " in ", time.Since(start))
 		return nil, nil
 	}
