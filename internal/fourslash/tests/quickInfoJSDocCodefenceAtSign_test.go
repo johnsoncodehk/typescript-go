@@ -13,21 +13,21 @@ func TestQuickInfoJSDocCodefenceAtSign(t *testing.T) {
 	const content = `/**
  * text
  * @example Foo
- * ` + "`" + `` + "`" + `` + "`" + `
+ * ` + "```" + `
  * @Embed[asfasdfasf]
- * ` + "`" + `` + "`" + `` + "`" + `
+ * ` + "```" + `
  * becomes
- * ` + "`" + `` + "`" + `` + "`" + `html
+ * ` + "```html" + `
  * <div></div>
- * ` + "`" + `` + "`" + `` + "`" + `
+ * ` + "```" + `
  */
 const /*1*/x = 1;
 
 /**
  * Some text
- * ` + "`" + `` + "`" + `` + "`" + `
+ * ` + "```" + `
  * @tag inside code
- * ` + "`" + `` + "`" + `` + "`" + `
+ * ` + "```" + `
  * @param y - a number
  */
 function /*2*/foo(y: number) {}
