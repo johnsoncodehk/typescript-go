@@ -2143,6 +2143,7 @@ func (c *Checker) checkSourceFile(ctx context.Context, sourceFile *ast.SourceFil
 	links := c.sourceFileLinks.Get(sourceFile)
 	if !links.typeChecked {
 		defer runtimetrace.Region(ctx, "checker.checkSourceFile")()
+		runtimetrace.LogUnsafef(ctx, "check", "file=%s", sourceFile.FileName())
 		c.saveDeferredDiagnostics = true
 		if tr := c.tracer; tr != nil {
 			defer tr.Push(tracing.PhaseCheck, "checkSourceFile", map[string]any{"path": sourceFile.FileName()}, true)()

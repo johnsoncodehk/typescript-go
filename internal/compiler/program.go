@@ -419,11 +419,13 @@ func (p *Program) SingleThreaded() bool {
 
 func (p *Program) BindSourceFiles() {
 	defer runtimetrace.Region(context.TODO(), "compiler.BindSourceFiles")()
+	runtimetrace.LogSafef(context.TODO(), "bind", "files=%d", len(p.files))
 	wg := core.NewWorkGroup(p.SingleThreaded())
 	for _, file := range p.files {
 		if !file.IsBound() {
 			wg.Queue(func() {
 				defer runtimetrace.Region(context.TODO(), "binder.BindSourceFile")()
+				runtimetrace.LogUnsafef(context.TODO(), "bind", "file=%s", file.FileName())
 				if p.opts.Tracing != nil {
 					defer p.opts.Tracing.Push(tracing.PhaseBind, "bindSourceFile", map[string]any{"path": string(file.Path())}, true)()
 				}
@@ -1610,6 +1612,7 @@ func (p *Program) Emit(ctx context.Context, options EmitOptions) *EmitResult {
 	wg := core.NewWorkGroup(p.SingleThreaded())
 	var emitters []*emitter
 	sourceFiles := p.getSourceFilesToEmit(options.TargetSourceFile, options.EmitOnly == EmitOnlyForcedDts)
+	runtimetrace.LogSafef(ctx, "emit", "files=%d", len(sourceFiles))
 
 	for _, sourceFile := range sourceFiles {
 		emitter := &emitter{
