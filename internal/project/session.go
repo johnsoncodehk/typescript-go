@@ -1133,6 +1133,10 @@ func (s *Session) WaitForBackgroundTasks() {
 
 func updateWatch[T any](ctx context.Context, session *Session, logger logging.Logger, oldWatcher, newWatcher *WatchedFiles[T]) []error {
 	var errors []error
+	// Use a timeout for client requests to prevent holding watchesMu indefinitely
+	// if the client is slow or unresponsive.
+	watchCtx, watchCancel := context.WithTimeout(ctx, time.Second)
+	defer watchCancel()
 	session.watchesMu.Lock()
 	defer session.watchesMu.Unlock()
 	if newWatcher != nil {
@@ -1154,7 +1158,7 @@ func updateWatch[T any](ctx context.Context, session *Session, logger logging.Lo
 				}
 			}
 			for id, watcher := range newWatchers.Entries() {
-				if err := session.client.WatchFiles(ctx, id, []*lsproto.FileSystemWatcher{watcher}); err != nil {
+				if err := session.client.WatchFiles(watchCtx, id, []*lsproto.FileSystemWatcher{watcher}); err != nil {
 					errors = append(errors, err)
 				} else if logger != nil {
 					if oldWatcher == nil {
@@ -1195,7 +1199,7 @@ func updateWatch[T any](ctx context.Context, session *Session, logger logging.Lo
 				}
 			}
 			for _, id := range removedWatchers {
-				if err := session.client.UnwatchFiles(ctx, id); err != nil {
+				if err := session.client.UnwatchFiles(watchCtx, id); err != nil {
 					errors = append(errors, err)
 				} else if logger != nil && newWatcher == nil {
 					logger.Log(fmt.Sprintf("Removed watch: %s", id))
