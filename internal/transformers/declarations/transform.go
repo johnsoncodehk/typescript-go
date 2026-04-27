@@ -1871,6 +1871,12 @@ func (tx *DeclarationTransformer) transformImportEqualsDeclaration(decl *ast.Imp
 func (tx *DeclarationTransformer) transformImportDeclaration(decl *ast.ImportDeclaration) *ast.Node {
 	if decl.ImportClause == nil {
 		// import "mod" - possibly needed for side effects? (global interface patches, module augmentations, etc)
+		// In JS source files, side-effect imports are elided in declaration emit. Strada's JS path
+		// (transformDeclarationsForJS via resolver.getDeclarationStatementsForSourceFile) synthesizes
+		// declarations symbolically and never emits bare side-effect imports; matching that behavior here.
+		if tx.state.currentSourceFile != nil && tx.state.currentSourceFile.IsJS() {
+			return nil
+		}
 		return tx.Factory().UpdateImportDeclaration(
 			decl,
 			decl.Modifiers(),

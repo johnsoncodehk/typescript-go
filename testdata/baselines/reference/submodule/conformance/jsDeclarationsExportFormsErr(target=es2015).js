@@ -108,6 +108,4 @@ export {};
 export * from "./cls";
 export as namespace GLO;
 //// [includeAll.d.ts]
-import "./bar";
-import "./bin";
-import "./globalNs";
+export {};

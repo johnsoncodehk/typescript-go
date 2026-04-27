@@ -59,4 +59,4 @@ export = a;
 declare const a: {};
 export = a;
 //// [file.d.ts]
-import "fs";
+export {};

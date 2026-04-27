@@ -298,16 +298,7 @@ export { ns };
 declare const ns: typeof ns;
 export { ns as names };
 //// [includeAll.d.ts]
-import "./cjs4";
-import "./cjs3";
-import "./cjs2";
-import "./cjs";
-import "./bol";
-import "./ban";
-import "./bat";
-import "./baz";
-import "./bar";
-import "./bar2";
+export {};
 
 
 //// [DtsFileErrors]
@@ -377,14 +368,5 @@ out/cjs4.d.ts(1,15): error TS2502: 'ns' is referenced directly or indirectly in 
     export { ns as names };
     
 ==== out/includeAll.d.ts (0 errors) ====
-    import "./cjs4";
-    import "./cjs3";
-    import "./cjs2";
-    import "./cjs";
-    import "./bol";
-    import "./ban";
-    import "./bat";
-    import "./baz";
-    import "./bar";
-    import "./bar2";
+    export {};
     
