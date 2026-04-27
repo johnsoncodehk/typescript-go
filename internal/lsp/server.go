@@ -592,6 +592,8 @@ func sendClientRequest[Req, Resp any](ctx context.Context, s *Server, info lspro
 
 // sendClientRequestFireAndForget sends a request to the client without waiting for a response.
 // The response, if any, will be silently ignored by the read loop since no pending channel is registered.
+// This means any error returned by the client will not be observed. Use only for requests where the
+// response value is not needed (e.g., the client always returns null).
 func sendClientRequestFireAndForget[Req, Resp any](s *Server, info lsproto.RequestInfo[Req, Resp], params Req) error {
 	id := jsonrpc.NewIDString(fmt.Sprintf("ts%d", s.clientSeq.Add(1)))
 	req := info.NewRequestMessage(id, params)

@@ -45,6 +45,10 @@ const (
 	UpdateReasonIdleCleanDiskCache
 )
 
+// watchRequestTimeout is the maximum time to wait for the client to respond to
+// a WatchFiles or UnwatchFiles request while holding the watches mutex.
+const watchRequestTimeout = time.Second
+
 // SessionOptions are the immutable initialization options for a session.
 // Snapshots may reference them as a pointer since they never change.
 type SessionOptions struct {
@@ -1135,7 +1139,7 @@ func updateWatch[T any](ctx context.Context, session *Session, logger logging.Lo
 	var errors []error
 	// Use a timeout for client requests to prevent holding watchesMu indefinitely
 	// if the client is slow or unresponsive.
-	watchCtx, watchCancel := context.WithTimeout(ctx, time.Second)
+	watchCtx, watchCancel := context.WithTimeout(ctx, watchRequestTimeout)
 	defer watchCancel()
 	session.watchesMu.Lock()
 	defer session.watchesMu.Unlock()
