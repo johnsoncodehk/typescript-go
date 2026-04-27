@@ -1,0 +1,10 @@
+//// [tests/cases/compiler/formatWhitespaceBetweenComments.ts] ////
+
+=== formatWhitespaceBetweenComments.ts ===
+  const x = "wont format"
+>x : Symbol(x, Decl(formatWhitespaceBetweenComments.ts, 0, 7))
+
+//
+ 
+//
+
