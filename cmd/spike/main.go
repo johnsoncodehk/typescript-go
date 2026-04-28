@@ -889,17 +889,56 @@ func runAnalysis(ctx context.Context, l *loaded, origPath string, progElapsed ti
 	}
 	fmt.Println()
 
-	typeAnalysisLimit := 10
-	if len(safeRanked) < typeAnalysisLimit {
-		typeAnalysisLimit = len(safeRanked)
+	const opportunityScanLimit = 100
+	scanLimit := opportunityScanLimit
+	if len(safeRanked) < scanLimit {
+		scanLimit = len(safeRanked)
 	}
-	fmt.Printf("Argument type analysis (top %d safe by callers):\n", typeAnalysisLimit)
-	for _, rd := range safeRanked[:typeAnalysisLimit] {
-		analyzeArgTypes(rd, l.chk, l.file)
+	const detailLimit = 10
+	detail := detailLimit
+	if scanLimit < detail {
+		detail = scanLimit
+	}
+
+	var allOpps []paramOpportunity
+	fmt.Printf("Argument type analysis (top %d safe by callers; scanning top %d for opportunities):\n",
+		detail, scanLimit)
+	for i, rd := range safeRanked[:scanLimit] {
+		opps := analyzeArgTypes(rd, l.chk, l.file, i < detail)
+		allOpps = append(allOpps, opps...)
+	}
+
+	sort.Slice(allOpps, func(i, j int) bool { return allOpps[i].score > allOpps[j].score })
+	fmt.Println()
+	fmt.Println("Specialization opportunities (highest score first):")
+	oppLimit := 25
+	if len(allOpps) < oppLimit {
+		oppLimit = len(allOpps)
+	}
+	for _, o := range allOpps[:oppLimit] {
+		fmt.Printf("  %-28s @%-6d param %d: %-12s %3d/%-3d narrow, top: %dx %s  (score=%.0f)\n",
+			truncateType(o.funcName, 28), o.funcLine, o.paramIdx,
+			o.classification, o.narrowCallers, o.totalCallers,
+			o.dominantCount, truncateType(o.dominantType, 30), o.score)
 	}
 }
 
-func analyzeArgTypes(rd rankedDecl, chk *checker.Checker, file *ast.SourceFile) {
+type paramOpportunity struct {
+	funcName       string
+	funcLine       int
+	paramIdx       int
+	classification string
+	totalCallers   int
+	narrowCallers  int
+	dominantType   string
+	dominantCount  int
+	score          float64
+}
+
+// analyzeArgTypes prints per-param type histograms for `rd` (when verbose
+// is true) and returns specialization opportunities for each parameter
+// regardless of verbosity.
+func analyzeArgTypes(rd rankedDecl, chk *checker.Checker, file *ast.SourceFile, verbose bool) []paramOpportunity {
 	name := declName(rd.decl)
 	line, _ := lineCol(file, rd.decl.Pos())
 
@@ -933,32 +972,143 @@ func analyzeArgTypes(rd rankedDecl, chk *checker.Checker, file *ast.SourceFile) 
 		}
 	}
 
-	fmt.Printf("\n  %s @ line %d  (callers=%d, resolved=%d, max arity=%d)\n",
-		name, line, rd.callCount, resolved, maxArity)
-	for i, hist := range perArg {
-		type tc struct {
-			typ   string
-			count int
-		}
-		ranked := make([]tc, 0, len(hist))
-		for k, v := range hist {
-			ranked = append(ranked, tc{k, v})
-		}
-		sort.Slice(ranked, func(a, b int) bool { return ranked[a].count > ranked[b].count })
-
-		fmt.Printf("    param %d: ", i)
-		for j, t := range ranked {
-			if j >= 4 {
-				fmt.Printf(", ... +%d more", len(ranked)-4)
-				break
-			}
-			if j > 0 {
-				fmt.Print(", ")
-			}
-			fmt.Printf("%dx %s", t.count, truncateType(t.typ, 40))
-		}
-		fmt.Println()
+	if verbose {
+		fmt.Printf("\n  %s @ line %d  (callers=%d, resolved=%d, max arity=%d)\n",
+			name, line, rd.callCount, resolved, maxArity)
 	}
+
+	var opps []paramOpportunity
+	for i, hist := range perArg {
+		opp := classifyParam(hist, resolved)
+		opp.funcName = name
+		opp.funcLine = line
+		opp.paramIdx = i
+		opps = append(opps, opp)
+
+		if verbose {
+			type tc struct {
+				typ   string
+				count int
+			}
+			ranked := make([]tc, 0, len(hist))
+			for k, v := range hist {
+				ranked = append(ranked, tc{k, v})
+			}
+			sort.Slice(ranked, func(a, b int) bool { return ranked[a].count > ranked[b].count })
+
+			fmt.Printf("    param %d [%s]: ", i, opp.classification)
+			for j, t := range ranked {
+				if j >= 4 {
+					fmt.Printf(", ... +%d more", len(ranked)-4)
+					break
+				}
+				if j > 0 {
+					fmt.Print(", ")
+				}
+				fmt.Printf("%dx %s", t.count, truncateType(t.typ, 40))
+			}
+			fmt.Println()
+		}
+	}
+	return opps
+}
+
+// classifyParam buckets a parameter slot by its caller-type histogram.
+// Two axes matter: narrowFrac (how many callers carry type info) and the
+// distribution among narrow callers.
+//
+// Classifications, ordered by specialization value:
+//
+//   - monomorphic: ≥95% of all callers pass the same narrow type. One
+//     fast path covers everyone.
+//   - monomorphic-narrow: ≥95% of NARROW callers agree, but narrowFrac is
+//     under 95% (some callers are `any`). Specialize the narrow path,
+//     keep a generic fallback for the rest.
+//   - bimodal: top two narrow types cover ≥85% of NARROW callers, each
+//     ≥10%. Specialize with one if/else.
+//   - polymorphic: 3-5 distinct narrow types dominate. Switch dispatch.
+//   - spread: many narrow types, no clear majority. Low ROI.
+//   - generic: no narrow callers at all.
+//
+// Score = approximate number of callers that benefit from specialization.
+func classifyParam(hist map[string]int, totalCallers int) paramOpportunity {
+	if totalCallers == 0 {
+		return paramOpportunity{classification: "no-callers"}
+	}
+	type tc struct {
+		typ   string
+		count int
+	}
+	ranked := make([]tc, 0, len(hist))
+	narrow := 0
+	for k, v := range hist {
+		ranked = append(ranked, tc{k, v})
+		if !isWideType(k) {
+			narrow += v
+		}
+	}
+	sort.Slice(ranked, func(a, b int) bool { return ranked[a].count > ranked[b].count })
+
+	var narrowSorted []tc
+	for _, r := range ranked {
+		if !isWideType(r.typ) {
+			narrowSorted = append(narrowSorted, r)
+		}
+	}
+
+	if len(narrowSorted) == 0 {
+		return paramOpportunity{
+			classification: "generic",
+			totalCallers:   totalCallers,
+			narrowCallers:  0,
+		}
+	}
+
+	dominantType := narrowSorted[0].typ
+	dominantCount := narrowSorted[0].count
+	narrowFrac := float64(narrow) / float64(totalCallers)
+	domAmongNarrow := float64(dominantCount) / float64(narrow)
+
+	classification := "spread"
+	score := float64(narrow) * 0.15
+
+	switch {
+	case domAmongNarrow >= 0.95 && narrowFrac >= 0.95:
+		classification = "monomorphic"
+		score = float64(dominantCount)
+	case domAmongNarrow >= 0.95:
+		classification = "monomorphic-narrow"
+		score = float64(dominantCount)
+	case len(narrowSorted) >= 2 &&
+		float64(narrowSorted[0].count+narrowSorted[1].count)/float64(narrow) >= 0.85 &&
+		narrowSorted[1].count >= int(0.1*float64(narrow)):
+		classification = "bimodal"
+		score = float64(narrowSorted[0].count+narrowSorted[1].count) * 0.7
+	case len(narrowSorted) >= 3 && len(narrowSorted) <= 5 &&
+		float64(narrowSorted[0].count+narrowSorted[1].count+narrowSorted[2].count)/float64(narrow) >= 0.7:
+		topThree := narrowSorted[0].count + narrowSorted[1].count + narrowSorted[2].count
+		classification = "polymorphic"
+		score = float64(topThree) * 0.4
+	}
+
+	return paramOpportunity{
+		classification: classification,
+		totalCallers:   totalCallers,
+		narrowCallers:  narrow,
+		dominantType:   dominantType,
+		dominantCount:  dominantCount,
+		score:          score,
+	}
+}
+
+// isWideType returns true for types that carry no specialization signal:
+// any, unknown, void, the empty object {}, and never (no-callers buckets).
+func isWideType(t string) bool {
+	switch t {
+	case "any", "unknown", "void", "{}", "never", "object", "Object":
+		return true
+	}
+	return false
 }
 
 func truncateType(s string, max int) string {
