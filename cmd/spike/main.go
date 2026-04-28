@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -916,11 +917,98 @@ func runAnalysis(ctx context.Context, l *loaded, origPath string, progElapsed ti
 		oppLimit = len(allOpps)
 	}
 	for _, o := range allOpps[:oppLimit] {
-		fmt.Printf("  %-28s @%-6d param %d: %-12s %3d/%-3d narrow, top: %dx %s  (score=%.0f)\n",
+		fmt.Printf("  %-28s @%-6d param %d: %-19s %3d/%-3d narrow, top: %dx %s  (score=%.0f)\n",
 			truncateType(o.funcName, 28), o.funcLine, o.paramIdx,
 			o.classification, o.narrowCallers, o.totalCallers,
 			o.dominantCount, truncateType(o.dominantType, 30), o.score)
 	}
+
+	emitCodegenPreview(allOpps, safeRanked[:scanLimit], l.file)
+}
+
+// emitCodegenPreview shows what a monomorphic specialization clone would
+// look like for the highest-scoring purely-monomorphic opportunity (no
+// monomorphic-narrow, since those need a runtime fallback).
+//
+// V0: print the original function source, the suggested specialized name,
+// and the call sites that would be redirected. No actual source rewriting.
+func emitCodegenPreview(opps []paramOpportunity, scanned []rankedDecl, file *ast.SourceFile) {
+	var pick *paramOpportunity
+	for i := range opps {
+		if opps[i].classification != "monomorphic" {
+			continue
+		}
+		if pick == nil || opps[i].score > pick.score {
+			pick = &opps[i]
+		}
+	}
+	if pick == nil {
+		return
+	}
+
+	var picked *rankedDecl
+	for i, rd := range scanned {
+		line, _ := lineCol(file, rd.decl.Pos())
+		if declName(rd.decl) == pick.funcName && line == pick.funcLine {
+			picked = &scanned[i]
+			break
+		}
+	}
+	if picked == nil {
+		return
+	}
+
+	fmt.Println()
+	fmt.Println("=== Codegen preview (top monomorphic) ===")
+	fmt.Printf("Target:  %s @ line %d, param %d\n", pick.funcName, pick.funcLine, pick.paramIdx)
+	fmt.Printf("Type:    %s\n", pick.dominantType)
+	fmt.Printf("Plan:    clone, redirect %d call sites\n", pick.dominantCount)
+
+	text := file.Text()
+	declStart := scanner.SkipTrivia(text, picked.decl.Pos())
+	src := text[declStart:picked.decl.End()]
+	fmt.Println("\nOriginal function source:")
+	for _, ln := range strings.Split(src, "\n") {
+		fmt.Println("  | " + ln)
+	}
+
+	specName := pick.funcName + "__p" + strconv.Itoa(pick.paramIdx) + "_" + sanitizeIdent(pick.dominantType)
+	fmt.Printf("\nSuggested specialized name: %s\n", specName)
+
+	fmt.Println("\nCall sites to redirect:")
+	count := 0
+	for _, ref := range picked.callsites {
+		call := ls.CallSiteOf(ref)
+		if call == nil {
+			continue
+		}
+		if count >= 8 {
+			fmt.Printf("  ... and %d more\n", len(picked.callsites)-count)
+			break
+		}
+		line, col := lineCol(file, scanner.SkipTrivia(text, call.Pos()))
+		callSrc := strings.TrimSpace(text[scanner.SkipTrivia(text, call.Pos()):call.End()])
+		fmt.Printf("  %d:%d  %s\n", line, col, truncateType(callSrc, 80))
+		count++
+	}
+}
+
+// sanitizeIdent turns a type string into a JS-identifier-safe suffix.
+func sanitizeIdent(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	out := b.String()
+	if len(out) > 40 {
+		out = out[:40]
+	}
+	return out
 }
 
 type paramOpportunity struct {
