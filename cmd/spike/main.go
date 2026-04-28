@@ -45,6 +45,7 @@ type loaded struct {
 func main() {
 	promote := flag.Bool("promote", false, "rewrite var/let to const + lift bare-var-then-assign to const decl")
 	annotate := flag.Bool("annotate", false, "rewrite var/let to const + JSDoc-annotate bare-var-then-assign with type from RHS")
+	mutate := flag.Bool("mutate", false, "after analysis, materialize a specialization clone of the top monomorphic target")
 	flag.Parse()
 	if *promote && *annotate {
 		fmt.Fprintln(os.Stderr, "--promote and --annotate are mutually exclusive")
@@ -97,7 +98,7 @@ func main() {
 	}
 	defer l.done()
 
-	runAnalysis(ctx, l, displayPath, progElapsed)
+	runAnalysis(ctx, l, displayPath, progElapsed, *mutate)
 }
 
 func load(ctx context.Context, path string) *loaded {
@@ -769,7 +770,7 @@ func writeTempCopy(origPath, content string) (string, error) {
 	return tempPath, nil
 }
 
-func runAnalysis(ctx context.Context, l *loaded, origPath string, progElapsed time.Duration) {
+func runAnalysis(ctx context.Context, l *loaded, origPath string, progElapsed time.Duration, mutate bool) {
 	t1 := time.Now()
 	chkElapsed := time.Since(t1) // already loaded; keep label
 
@@ -923,16 +924,30 @@ func runAnalysis(ctx context.Context, l *loaded, origPath string, progElapsed ti
 			o.dominantCount, truncateType(o.dominantType, 30), o.score)
 	}
 
-	emitCodegenPreview(allOpps, safeRanked[:scanLimit], l.file)
+	picked, opp := pickTopMonomorphic(allOpps, safeRanked[:scanLimit], l.file)
+	if picked == nil {
+		return
+	}
+	specName := opp.funcName + "__p" + strconv.Itoa(opp.paramIdx) + "_" + sanitizeIdent(opp.dominantType)
+	emitCodegenPreview(*picked, *opp, specName, l.file)
+
+	if mutate {
+		mutated, ok := generateMutation(*picked, *opp, specName, l.file)
+		if !ok {
+			fmt.Println("\nMutation skipped: target is not a class method (not yet supported).")
+			return
+		}
+		path, err := writeTempCopy(origPath, mutated)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "tempfile:", err)
+			return
+		}
+		fmt.Printf("\nMutated file:    %s\n", path)
+		fmt.Println("Re-analyze with: spike --annotate", path)
+	}
 }
 
-// emitCodegenPreview shows what a monomorphic specialization clone would
-// look like for the highest-scoring purely-monomorphic opportunity (no
-// monomorphic-narrow, since those need a runtime fallback).
-//
-// V0: print the original function source, the suggested specialized name,
-// and the call sites that would be redirected. No actual source rewriting.
-func emitCodegenPreview(opps []paramOpportunity, scanned []rankedDecl, file *ast.SourceFile) {
+func pickTopMonomorphic(opps []paramOpportunity, scanned []rankedDecl, file *ast.SourceFile) (*rankedDecl, *paramOpportunity) {
 	var pick *paramOpportunity
 	for i := range opps {
 		if opps[i].classification != "monomorphic" {
@@ -943,26 +958,26 @@ func emitCodegenPreview(opps []paramOpportunity, scanned []rankedDecl, file *ast
 		}
 	}
 	if pick == nil {
-		return
+		return nil, nil
 	}
-
-	var picked *rankedDecl
 	for i, rd := range scanned {
 		line, _ := lineCol(file, rd.decl.Pos())
 		if declName(rd.decl) == pick.funcName && line == pick.funcLine {
-			picked = &scanned[i]
-			break
+			return &scanned[i], pick
 		}
 	}
-	if picked == nil {
-		return
-	}
+	return nil, nil
+}
 
+// emitCodegenPreview prints what a monomorphic specialization clone would
+// look like: the original source, the suggested name, and the call sites
+// that would be redirected.
+func emitCodegenPreview(picked rankedDecl, opp paramOpportunity, specName string, file *ast.SourceFile) {
 	fmt.Println()
 	fmt.Println("=== Codegen preview (top monomorphic) ===")
-	fmt.Printf("Target:  %s @ line %d, param %d\n", pick.funcName, pick.funcLine, pick.paramIdx)
-	fmt.Printf("Type:    %s\n", pick.dominantType)
-	fmt.Printf("Plan:    clone, redirect %d call sites\n", pick.dominantCount)
+	fmt.Printf("Target:  %s @ line %d, param %d\n", opp.funcName, opp.funcLine, opp.paramIdx)
+	fmt.Printf("Type:    %s\n", opp.dominantType)
+	fmt.Printf("Plan:    clone, redirect %d call sites\n", opp.dominantCount)
 
 	text := file.Text()
 	declStart := scanner.SkipTrivia(text, picked.decl.Pos())
@@ -972,7 +987,6 @@ func emitCodegenPreview(opps []paramOpportunity, scanned []rankedDecl, file *ast
 		fmt.Println("  | " + ln)
 	}
 
-	specName := pick.funcName + "__p" + strconv.Itoa(pick.paramIdx) + "_" + sanitizeIdent(pick.dominantType)
 	fmt.Printf("\nSuggested specialized name: %s\n", specName)
 
 	fmt.Println("\nCall sites to redirect:")
@@ -991,6 +1005,55 @@ func emitCodegenPreview(opps []paramOpportunity, scanned []rankedDecl, file *ast
 		fmt.Printf("  %d:%d  %s\n", line, col, truncateType(callSrc, 80))
 		count++
 	}
+}
+
+// generateMutation produces a source string with the specialized clone
+// inserted into the enclosing class body and every call site redirected
+// to the new name. Currently supports only MethodDeclaration targets;
+// returns (text, false) for non-class targets.
+//
+// The clone is byte-identical to the original except for the method name,
+// so behavior is unchanged. This is V0 of codegen: it validates the
+// source-mutation infrastructure (range-based inserts, identifier-only
+// replacements) without yet folding any conditionals against the
+// specialization type.
+func generateMutation(picked rankedDecl, opp paramOpportunity, specName string, file *ast.SourceFile) (string, bool) {
+	method := picked.decl
+	if method.Kind != ast.KindMethodDeclaration {
+		return "", false
+	}
+	var cls *ast.Node
+	for cur := method.Parent; cur != nil; cur = cur.Parent {
+		if cur.Kind == ast.KindClassDeclaration || cur.Kind == ast.KindClassExpression {
+			cls = cur
+			break
+		}
+	}
+	if cls == nil {
+		return "", false
+	}
+	methodName := method.Name()
+	if methodName == nil || methodName.Kind != ast.KindIdentifier {
+		return "", false
+	}
+
+	text := file.Text()
+	methodStart := method.Pos()
+	methodEnd := method.End()
+	nameStart := scanner.SkipTrivia(text, methodName.Pos())
+	nameEnd := methodName.End()
+
+	cloneSource := text[methodStart:nameStart] + specName + text[nameEnd:methodEnd]
+	insertPos := cls.End() - 1 // before the closing `}` of the class body
+
+	rewrites := []rewrite{{insertPos, insertPos, cloneSource + "\n"}}
+	for _, ref := range picked.callsites {
+		if ref.Kind != ast.KindIdentifier {
+			continue
+		}
+		rewrites = append(rewrites, rewrite{ref.Pos(), ref.End(), specName})
+	}
+	return applyRewrites(text, rewrites), true
 }
 
 // sanitizeIdent turns a type string into a JS-identifier-safe suffix.
